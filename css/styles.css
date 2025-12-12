@@ -1263,19 +1263,19 @@ img, svg, video, canvas { max-width: 100%; height: auto; }
   white-space: nowrap;
 }
 
-/* --- HERO order fix on mobile (workflow should not come before heading) --- */
-/* Works if your hero uses these common classes. If yours differ, rename accordingly. */
+/* ---- HOTFIX: Mobile hero order (heading first, workflow second) ---- */
 @media (max-width: 900px) {
-  .hero-grid, .hero-row, .hero-layout {
-    display: grid !important;
-    grid-template-columns: 1fr !important;
+  #home .hero-inner {
+    display: flex !important;
+    flex-direction: column !important; /* kill column-reverse */
   }
 
-  /* Ensure text first, workflow second */
-  .hero-copy, .hero-left { order: 1 !important; }
-  .hero-workflow, .hero-right, .workflow-card { order: 2 !important; }
+  #home .hero-copy {
+    order: 1 !important;
+  }
 
-  /* Prevent wide cards causing horizontal scroll */
-  .contact-grid, .dmrv-grid, .methodology-grid { grid-template-columns: 1fr !important; }
-  .contact-form-card, .method-card { width: 100% !important; max-width: 100% !important; }
+  #home .hero-visual {
+    order: 2 !important;
+    margin-top: 16px !important;
+  }
 }
