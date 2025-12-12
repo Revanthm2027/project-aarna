@@ -1209,3 +1209,73 @@ main {
     height: 32px;
   }
 }
+
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9999;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,0.55);
+  background: rgba(2,6,23,0.92);
+  color: var(--text-main);
+  box-shadow: 0 18px 50px rgba(15,23,42,0.8);
+  transform: translateY(10px);
+  opacity: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+  max-width: 360px;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast-success { border-color: rgba(53, 224, 255, 0.75); }
+.toast-error { border-color: rgba(239, 68, 68, 0.75); }
+
+/* --- Mobile stability / no sideways scroll --- */
+* { box-sizing: border-box; }
+html, body { width: 100%; overflow-x: hidden; }
+img, svg, video, canvas { max-width: 100%; height: auto; }
+.section, header, main, footer { width: 100%; overflow-x: clip; }
+
+/* If any decorative layers are pushing width */
+[class*="wave"], [class*="ripple"], [class*="glow"], [class*="decor"] {
+  max-width: 100%;
+}
+
+/* --- Navbar / containers: prevent accidental 100vw overflow --- */
+.navbar, .nav-inner { width: 100%; }
+.nav-inner { max-width: 1200px; margin: 0 auto; padding-left: 16px; padding-right: 16px; }
+
+/* --- Admin table responsiveness --- */
+.admin-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.admin-table thead th {
+  padding: 10px;
+  text-align: left;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+/* --- HERO order fix on mobile (workflow should not come before heading) --- */
+/* Works if your hero uses these common classes. If yours differ, rename accordingly. */
+@media (max-width: 900px) {
+  .hero-grid, .hero-row, .hero-layout {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Ensure text first, workflow second */
+  .hero-copy, .hero-left { order: 1 !important; }
+  .hero-workflow, .hero-right, .workflow-card { order: 2 !important; }
+
+  /* Prevent wide cards causing horizontal scroll */
+  .contact-grid, .dmrv-grid, .methodology-grid { grid-template-columns: 1fr !important; }
+  .contact-form-card, .method-card { width: 100% !important; max-width: 100% !important; }
+}
