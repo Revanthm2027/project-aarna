@@ -56,8 +56,10 @@
   <main>
     <!-- HERO / HOME -->
     <section id="home" class="section hero-section">
-      <div class="hero-inner">
-        <div class="hero-copy">
+      <!-- IMPORTANT: added hero-grid class -->
+      <div class="hero-inner hero-grid">
+        <!-- IMPORTANT: added heroCopy id -->
+        <div class="hero-copy" id="heroCopy">
           <p class="hero-kicker">Science · Coasts · Carbon</p>
 
           <h1 class="hero-title">
@@ -84,7 +86,8 @@
           </div>
         </div>
 
-        <div class="hero-visual">
+        <!-- IMPORTANT: added heroWorkflow id to force it below heading on mobile -->
+        <div class="hero-visual" id="heroWorkflow">
           <div class="wave-orbit orbit-1"></div>
           <div class="wave-orbit orbit-2"></div>
           <div class="wave-orbit orbit-3"></div>
@@ -497,8 +500,6 @@
         <div class="contact-form-card hover-float">
           <h3>Send us a message</h3>
           <form id="contact-form" class="contact-form" method="post" action="javascript:void(0)">
-
-
             <label>
               Name
               <input type="text" name="name" placeholder="Your full name" required />
@@ -516,10 +517,12 @@
                 required
               ></textarea>
             </label>
+
             <label style="display:flex; gap:10px; align-items:center; font-size:0.9rem; color: var(--text-muted); text-transform:none; letter-spacing:0;">
-    <input id="newsletter-optin" type="checkbox" />
-    Also add me to AARNA newsletter updates.
-  </label>
+              <input id="newsletter-optin" type="checkbox" />
+              Also add me to AARNA newsletter updates.
+            </label>
+
             <button type="submit" class="btn btn-primary">Submit</button>
           </form>
         </div>
@@ -547,10 +550,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="/js/supabaseClient.js"></script>
-<script src="/js/main.js"></script>
-
-
-
+  <script src="/js/supabaseClient.js"></script>
+  <script src="/js/main.js"></script>
 </body>
 </html>
