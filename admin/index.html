@@ -9,7 +9,7 @@
 <body>
   <header class="navbar">
     <div class="nav-inner">
-      <a href="/" class="brand">
+      <a href="../" class="brand">
         <span class="logo-slot"></span>
         <span class="brand-text">
           Project <strong>AARNA</strong>
@@ -18,7 +18,7 @@
       </a>
 
       <div class="nav-actions">
-        <a class="btn btn-secondary" href="/">Back to site</a>
+        <a class="btn btn-secondary" href="../">Back to site</a>
         <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle theme">
           <span class="theme-icon">☾</span>
         </button>
@@ -62,90 +62,53 @@
           <button id="logout-btn" class="btn btn-secondary" type="button">Logout</button>
         </div>
 
-        <!-- INBOX -->
         <div class="section-header" style="margin: 2.2rem 0 1rem;">
           <h2 style="font-size:1.6rem;">Inbox (New)</h2>
-          <p>Only new messages appear here. Marking contacted/closed removes them from Inbox.</p>
+          <p>Mark contacted/closed to move it out of Inbox.</p>
         </div>
-
         <div class="contact-form-card hover-float">
           <div style="overflow:auto;">
             <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Message</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Time</th><th>Name</th><th>Email</th><th>Message</th><th>Status</th></tr></thead>
               <tbody id="contacts-new-tbody"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- CONTACTED -->
         <div class="section-header" style="margin: 2.2rem 0 1rem;">
           <h2 style="font-size:1.6rem;">Contacted</h2>
           <p>Messages under follow-up.</p>
         </div>
-
         <div class="contact-form-card hover-float">
           <div style="overflow:auto;">
             <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Message</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Time</th><th>Name</th><th>Email</th><th>Message</th><th>Status</th></tr></thead>
               <tbody id="contacts-contacted-tbody"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- CLOSED -->
         <div class="section-header" style="margin: 2.2rem 0 1rem;">
           <h2 style="font-size:1.6rem;">Closed</h2>
           <p>Archived messages.</p>
         </div>
-
         <div class="contact-form-card hover-float">
           <div style="overflow:auto;">
             <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Message</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Time</th><th>Name</th><th>Email</th><th>Message</th><th>Status</th></tr></thead>
               <tbody id="contacts-closed-tbody"></tbody>
             </table>
           </div>
         </div>
 
-        <!-- NEWSLETTER -->
         <div class="section-header" style="margin: 2.2rem 0 1rem;">
           <h2 style="font-size:1.6rem;">Newsletter list</h2>
           <p>Emails that opted in.</p>
         </div>
-
         <div class="contact-form-card hover-float">
           <div style="overflow:auto;">
             <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>Email</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Time</th><th>Email</th></tr></thead>
               <tbody id="subs-tbody"></tbody>
             </table>
           </div>
@@ -155,7 +118,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script src="/js/supabaseClient.js"></script>
+  <script src="../js/supabaseClient.js"></script>
   <script src="./admin.js"></script>
 </body>
 </html>

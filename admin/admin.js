@@ -1,6 +1,6 @@
-// admin/admin.js
 document.addEventListener("DOMContentLoaded", () => {
   const ADMIN_EMAIL = "projectaarna@protonmail.com";
+  const sb = window.sb;
 
   // Theme
   const root = document.documentElement;
@@ -14,8 +14,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const icon = themeToggle.querySelector(".theme-icon");
     if (icon) icon.textContent = next === "light" ? "☀︎" : "☾";
   });
-
-  const sb = window.sb;
 
   const authCard = document.getElementById("auth-card");
   const dash = document.getElementById("dashboard");
@@ -52,11 +50,12 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   async function enforceAdmin() {
-    if (!sb) return { ok: false, reason: "Backend not configured (Supabase keys missing)." };
+    if (!sb) return { ok: false, reason: "Supabase not initialized. Check /admin script paths." };
 
-    const { data } = await sb.auth.getUser();
-    const user = data?.user;
+    const { data: userRes, error: userErr } = await sb.auth.getUser();
+    if (userErr) return { ok: false, reason: `Auth error: ${userErr.message}` };
 
+    const user = userRes?.user;
     if (!user) return { ok: false, reason: "" };
 
     if ((user.email || "").toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
@@ -70,10 +69,23 @@ document.addEventListener("DOMContentLoaded", () => {
       .eq("id", user.id)
       .single();
 
-    if (error || !prof) return { ok: false, reason: "Admin profile missing. Run the admin upsert SQL." };
-    if (prof.role !== "admin") return { ok: false, reason: "Role is not admin. Set profiles.role='admin'." };
+    if (error) return { ok: false, reason: `profiles table/policy error: ${error.message}` };
+    if (!prof) return { ok: false, reason: "Admin profile missing. Run the SQL admin upsert." };
+    if (prof.role !== "admin") return { ok: false, reason: "Role is not admin. Set role='admin'." };
 
     return { ok: true };
+  }
+
+  function attachStatusHandlers(tbody) {
+    tbody.querySelectorAll(".status-select").forEach((sel) => {
+      sel.addEventListener("change", async (e) => {
+        const id = Number(e.target.getAttribute("data-id"));
+        const status = e.target.value;
+        const { error } = await sb.from("contacts").update({ status }).eq("id", id);
+        if (error) console.error("[AARNA] status update error:", error);
+        await loadDashboard();
+      });
+    });
   }
 
   function renderContacts(tbody, rows) {
@@ -99,20 +111,10 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
       })
       .join("");
-
-    tbody.querySelectorAll(".status-select").forEach((sel) => {
-      sel.addEventListener("change", async (e) => {
-        const id = Number(e.target.getAttribute("data-id"));
-        const status = e.target.value;
-        const { error } = await sb.from("contacts").update({ status }).eq("id", id);
-        if (error) console.error("[AARNA] status update error:", error);
-        await loadDashboard(); // re-fetch; ensures it disappears from Inbox immediately
-      });
-    });
+    attachStatusHandlers(tbody);
   }
 
   async function loadDashboard() {
-    // Contacts by status
     const [newRes, contactedRes, closedRes, subsRes] = await Promise.all([
       sb.from("contacts").select("id,name,email,message,created_at,status").eq("status", "new").order("created_at", { ascending: false }).limit(120),
       sb.from("contacts").select("id,name,email,message,created_at,status").eq("status", "contacted").order("created_at", { ascending: false }).limit(120),
@@ -142,17 +144,14 @@ document.addEventListener("DOMContentLoaded", () => {
     subsTbody.innerHTML = subs
       .map((r) => {
         const time = r.created_at ? new Date(r.created_at).toLocaleString() : "—";
-        return `
-          <tr style="border-top:1px solid rgba(148,163,184,0.25);">
-            <td style="padding:10px; color: var(--text-muted); white-space:nowrap;">${esc(time)}</td>
-            <td style="padding:10px;">${esc(r.email)}</td>
-          </tr>
-        `;
+        return `<tr style="border-top:1px solid rgba(148,163,184,0.25);">
+          <td style="padding:10px; color: var(--text-muted); white-space:nowrap;">${esc(time)}</td>
+          <td style="padding:10px;">${esc(r.email)}</td>
+        </tr>`;
       })
       .join("");
   }
 
-  // Boot
   (async () => {
     const gate = await enforceAdmin();
     if (!gate.ok) return showLogin(gate.reason);
@@ -170,8 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const { error } = await sb.auth.signInWithPassword({ email, password });
     if (error) {
-      console.error("[AARNA] login error:", error);
-      statusEl.textContent = "Login failed. Check credentials.";
+      statusEl.textContent = error.message || "Login failed.";
       return;
     }
 
