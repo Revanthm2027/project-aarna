@@ -8,8 +8,9 @@ export default async function handler(req, res) {
     }
 
     const path = (req.query?.path || "/").toString().slice(0, 200);
+    const vidRaw = (req.query?.vid || "").toString().slice(0, 120);
 
-    // basic fingerprint: ip + ua (privacy-light)
+    // fallback fingerprint (if no vid)
     const ip =
       (req.headers["x-forwarded-for"] || "")
         .toString()
@@ -17,9 +18,11 @@ export default async function handler(req, res) {
         .trim() || "unknown";
     const ua = (req.headers["user-agent"] || "").toString().slice(0, 300);
 
+    const key = vidRaw ? `vid:${vidRaw}` : `ipua:${ip}|${ua}`;
+
     const payload = {
       path,
-      ip_hash: await sha256(`${ip}|${ua}`),
+      ip_hash: await sha256(key),
       user_agent: ua,
       visited_at: new Date().toISOString(),
     };
@@ -48,7 +51,6 @@ export default async function handler(req, res) {
 }
 
 async function sha256(input) {
-  // Node runtime (Vercel Functions)
   const crypto = await import("crypto");
   return crypto.createHash("sha256").update(input).digest("hex");
 }

@@ -1,9 +1,19 @@
 // js/main.js
 document.addEventListener("DOMContentLoaded", () => {
-  // ---- Visitor tracking (non-blocking) ----
-  // This is what creates rows in Supabase (page_visits) via Vercel /api/track
+  // ---- Visitor tracking (non-blocking, per-browser unique) ----
   try {
-    fetch(`/api/track?path=${encodeURIComponent(location.pathname)}`, { cache: "no-store" }).catch(() => {});
+    const KEY = "aarna_vid";
+    let vid = localStorage.getItem(KEY);
+    if (!vid) {
+      const c = globalThis.crypto;
+      vid = c?.randomUUID ? c.randomUUID() : `vid_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem(KEY, vid);
+    }
+
+    fetch(
+      `/api/track?path=${encodeURIComponent(location.pathname)}&vid=${encodeURIComponent(vid)}`,
+      { cache: "no-store", keepalive: true }
+    ).catch(() => {});
   } catch {}
 
   // ---- wait for window.sb (covers slow load / caching edge cases) ----
