@@ -1,6 +1,12 @@
 // js/main.js
 document.addEventListener("DOMContentLoaded", () => {
-  // wait for window.sb (covers slow script load / caching edge cases)
+  // ---- Visitor tracking (non-blocking) ----
+  // This is what creates rows in Supabase (page_visits) via Vercel /api/track
+  try {
+    fetch(`/api/track?path=${encodeURIComponent(location.pathname)}`, { cache: "no-store" }).catch(() => {});
+  } catch {}
+
+  // ---- wait for window.sb (covers slow load / caching edge cases) ----
   const waitForSb = (ms = 2500) =>
     new Promise((resolve) => {
       const t0 = Date.now();
@@ -47,43 +53,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Toast
-  function toast(msg, type = "info") {
-    let el = document.getElementById("toast");
-    if (!el) {
-      el = document.createElement("div");
-      el.id = "toast";
-      el.style.position = "fixed";
-      el.style.right = "16px";
-      el.style.bottom = "16px";
-      el.style.zIndex = "9999";
-      el.style.padding = "12px 14px";
-      el.style.borderRadius = "14px";
-      el.style.border = "1px solid rgba(148,163,184,0.35)";
-      el.style.background = "rgba(2,6,23,0.9)";
-      el.style.color = "white";
-      el.style.backdropFilter = "blur(10px)";
-      el.style.maxWidth = "320px";
-      el.style.fontSize = "0.95rem";
-      document.body.appendChild(el);
-    }
-    el.textContent = msg;
-    el.style.boxShadow =
-      type === "error"
-        ? "0 0 0 1px rgba(239,68,68,0.35), 0 18px 50px rgba(239,68,68,0.15)"
-        : "0 0 0 1px rgba(56,189,248,0.25), 0 18px 50px rgba(56,189,248,0.12)";
-    el.style.opacity = "1";
-    clearTimeout(el._t);
-    el._t = setTimeout(() => (el.style.opacity = "0"), 2200);
-  }
-
   const esc = (s) =>
     String(s || "")
       .replaceAll("&", "&amp;")
       .replaceAll("<", "&lt;")
       .replaceAll(">", "&gt;");
 
-  // Load experiments into live site
+  // Experiments: load from Supabase
   async function loadExperiments(sb) {
     const grid = document.getElementById("experiments-grid");
     if (!grid) return;
@@ -140,7 +116,6 @@ document.addEventListener("DOMContentLoaded", () => {
       .join("");
   }
 
-  // boot
   (async () => {
     const sb = await waitForSb();
     await loadExperiments(sb);
