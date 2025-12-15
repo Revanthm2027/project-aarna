@@ -1,6 +1,10 @@
 // js/main.js
 document.addEventListener("DOMContentLoaded", () => {
-  // ---- Visitor tracking (non-blocking, per-browser unique) ----
+  // =========================
+  // Visitor tracking (fast + reliable)
+  // =========================
+  // Counts PAGEVIEWS reliably, and UNIQUE by per-browser visitor id (vid).
+  // Uses beacon when possible to avoid blocking / drop-offs.
   try {
     const KEY = "aarna_vid";
     let vid = localStorage.getItem(KEY);
@@ -10,13 +14,20 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem(KEY, vid);
     }
 
-    fetch(
-      `/api/track?path=${encodeURIComponent(location.pathname)}&vid=${encodeURIComponent(vid)}`,
-      { cache: "no-store", keepalive: true }
-    ).catch(() => {});
+    const url = `/api/track?path=${encodeURIComponent(location.pathname)}&vid=${encodeURIComponent(
+      vid
+    )}&t=${Date.now()}`;
+
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon(url);
+    } else {
+      fetch(url, { cache: "no-store", keepalive: true }).catch(() => {});
+    }
   } catch {}
 
-  // ---- wait for window.sb (covers slow load / caching edge cases) ----
+  // =========================
+  // Helpers
+  // =========================
   const waitForSb = (ms = 2500) =>
     new Promise((resolve) => {
       const t0 = Date.now();
@@ -28,7 +39,15 @@ document.addEventListener("DOMContentLoaded", () => {
       tick();
     });
 
+  const esc = (s) =>
+    String(s || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+
+  // =========================
   // Theme
+  // =========================
   const root = document.documentElement;
   const THEME_KEY = "aarna-theme";
   const themeToggle = document.getElementById("theme-toggle");
@@ -49,13 +68,17 @@ document.addEventListener("DOMContentLoaded", () => {
     updateThemeIcon();
   });
 
+  // =========================
   // Mobile nav
+  // =========================
   const navToggle = document.querySelector(".nav-toggle");
   const navLinks = document.querySelector(".nav-links");
+
   navToggle?.addEventListener("click", () => {
     navLinks?.classList.toggle("open");
     navToggle?.classList.toggle("open");
   });
+
   document.querySelectorAll(".nav-link").forEach((a) => {
     a.addEventListener("click", () => {
       navLinks?.classList.remove("open");
@@ -63,13 +86,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  const esc = (s) =>
-    String(s || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;");
-
-  // Experiments: load from Supabase
+  // =========================
+  // Experiments: load from Supabase into live site
+  // =========================
   async function loadExperiments(sb) {
     const grid = document.getElementById("experiments-grid");
     if (!grid) return;
@@ -126,6 +145,9 @@ document.addEventListener("DOMContentLoaded", () => {
       .join("");
   }
 
+  // =========================
+  // Boot
+  // =========================
   (async () => {
     const sb = await waitForSb();
     await loadExperiments(sb);

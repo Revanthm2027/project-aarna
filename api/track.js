@@ -8,17 +8,12 @@ export default async function handler(req, res) {
     }
 
     const path = (req.query?.path || "/").toString().slice(0, 200);
-    const vidRaw = (req.query?.vid || "").toString().slice(0, 120);
+    const vid = (req.query?.vid || "").toString().slice(0, 120);
 
-    // fallback fingerprint (if no vid)
-    const ip =
-      (req.headers["x-forwarded-for"] || "")
-        .toString()
-        .split(",")[0]
-        .trim() || "unknown";
     const ua = (req.headers["user-agent"] || "").toString().slice(0, 300);
 
-    const key = vidRaw ? `vid:${vidRaw}` : `ipua:${ip}|${ua}`;
+    // Unique identity for "unique visitors" = per-browser vid
+    const key = vid ? `vid:${vid}` : `fallback:${ua}`;
 
     const payload = {
       path,
