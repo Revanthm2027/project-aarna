@@ -1,23 +1,11 @@
 // js/main.js
 document.addEventListener("DOMContentLoaded", () => {
   // =========================
-  // Visitor tracking (fast + reliable)
+  // Visitor tracking (Unique IP only)
   // =========================
-  // Counts PAGEVIEWS reliably, and UNIQUE by per-browser visitor id (vid).
-  // Uses beacon when possible to avoid blocking / drop-offs.
+  // Same IP -> same ip_hash -> one row -> count never increases again.
   try {
-    const KEY = "aarna_vid";
-    let vid = localStorage.getItem(KEY);
-    if (!vid) {
-      const c = globalThis.crypto;
-      vid = c?.randomUUID ? c.randomUUID() : `vid_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-      localStorage.setItem(KEY, vid);
-    }
-
-    const url = `/api/track?path=${encodeURIComponent(location.pathname)}&vid=${encodeURIComponent(
-      vid
-    )}&t=${Date.now()}`;
-
+    const url = `/api/track?path=${encodeURIComponent(location.pathname)}&t=${Date.now()}`;
     if (navigator.sendBeacon) {
       navigator.sendBeacon(url);
     } else {

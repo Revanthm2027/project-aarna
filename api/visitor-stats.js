@@ -1,3 +1,4 @@
+// api/visitor-stats.js
 export default async function handler(req, res) {
   try {
     const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -14,14 +15,16 @@ export default async function handler(req, res) {
         Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({}),
+      body: "{}",
     });
 
-    const data = await r.json();
-    if (!r.ok) return res.status(r.status).json({ error: data });
-
+    const text = await r.text();
     res.setHeader("Cache-Control", "no-store");
-    return res.status(200).json(data);
+
+    if (!r.ok) return res.status(r.status).json({ error: text });
+
+    // Supabase returns JSON text; pass it through cleanly
+    return res.status(200).send(text);
   } catch (e) {
     return res.status(500).json({ error: String(e?.message || e) });
   }
