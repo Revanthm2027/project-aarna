@@ -1,474 +1,710 @@
-// js/admin.js
+/* admin/admin.js
+   Project AARNA Admin Console (no framework)
+   - Login (Supabase Auth) restricted to one email
+   - Tabs: Overview, Messages, Experiments, Newsletter
+   - Experiments: Add/Edit/Delete + Publish toggle
+   - Visitor count: single number from /api/visitor-stats
+*/
+
 (function () {
-  "use strict";
+  const ADMIN_EMAIL = "projectaarna@protonmail.com";
 
-  const ADMIN_EMAIL_ALLOWED = "projectaarna@protonmail.com";
-
-  function $(id) { return document.getElementById(id); }
-
-  function msg(el, text, ok = false) {
-    if (!el) return;
-    el.textContent = text || "";
-    el.style.color = ok ? "rgba(160,255,200,0.95)" : "rgba(255,180,180,0.95)";
+  const root = document.getElementById("admin-root");
+  if (!root) {
+    console.error("[ADMIN] #admin-root not found");
+    return;
   }
 
-  // theme
-  const themeBtn = $("theme-toggle");
-  const themeIcon = themeBtn ? themeBtn.querySelector(".theme-icon") : null;
-  function setTheme(t) {
-    document.documentElement.setAttribute("data-theme", t);
-    localStorage.setItem("aarna_theme", t);
-    if (themeIcon) themeIcon.textContent = t === "dark" ? "☾" : "☀";
-  }
-  const savedTheme = localStorage.getItem("aarna_theme");
-  if (savedTheme) setTheme(savedTheme);
-  if (themeBtn) {
-    themeBtn.addEventListener("click", () => {
-      const cur = document.documentElement.getAttribute("data-theme") || "dark";
-      setTheme(cur === "dark" ? "light" : "dark");
-    });
+  // ---------- tiny utils ----------
+  const $ = (sel, el = document) => el.querySelector(sel);
+  const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
   }
 
-  function getSb() {
-    return window.sb || null;
-  }
-
-  const authBox = $("admin-auth");
-  const appBox = $("admin-app");
-  const loginForm = $("admin-login-form");
-  const authMsg = $("admin-auth-msg");
-
-  const logoutBtn = $("admin-logout");
-
-  const tabs = Array.from(document.querySelectorAll(".admin-tab"));
-  const panels = {
-    stats: $("tab-stats"),
-    experiments: $("tab-experiments"),
-    messages: $("tab-messages"),
-    newsletter: $("tab-newsletter"),
-  };
-
-  function showTab(name) {
-    tabs.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
-    Object.entries(panels).forEach(([k, el]) => {
-      if (el) el.style.display = k === name ? "" : "none";
-    });
-
-    // lazy-load per tab
-    if (name === "experiments") loadExperiments();
-    if (name === "messages") loadMessages(currentMsgFilter);
-    if (name === "newsletter") loadNewsletter();
-    if (name === "stats") loadVisitorCount();
-  }
-
-  tabs.forEach((b) => {
-    b.addEventListener("click", () => showTab(b.dataset.tab));
-  });
-
-  async function enforceAllowedAdmin(sb) {
-    const { data } = await sb.auth.getUser();
-    const email = data?.user?.email?.toLowerCase() || "";
-    if (email !== ADMIN_EMAIL_ALLOWED) {
-      await sb.auth.signOut();
-      throw new Error("Not authorized for this admin.");
+  function formatDate(ts) {
+    if (!ts) return "—";
+    try {
+      return new Date(ts).toLocaleString();
+    } catch {
+      return String(ts);
     }
   }
 
-  async function bootIfSession() {
-    const sb = getSb();
-    if (!sb) {
-      msg(authMsg, "Supabase client not ready. Check supabaseClient.js.", false);
+  function toast(msg, type = "info") {
+    let box = document.getElementById("aarna-toast");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "aarna-toast";
+      box.className = "toast toast--hidden";
+      document.body.appendChild(box);
+    }
+    box.className = `toast toast--${type}`;
+    box.textContent = msg;
+    setTimeout(() => (box.className = "toast toast--hidden"), 2600);
+  }
+
+  function setLoading(isLoading) {
+    root.setAttribute("data-loading", isLoading ? "true" : "false");
+  }
+
+  // ---------- Supabase guard ----------
+  if (!window.sb) {
+    root.innerHTML = `
+      <div class="admin-card">
+        <h3 style="text-align:center;margin:0 0 .5rem;">Backend not configured</h3>
+        <p style="text-align:center;margin:0;color:var(--text-muted);">
+          Supabase client not found (window.sb). Check /js/supabaseClient.js loading.
+        </p>
+      </div>`;
+    return;
+  }
+
+  const sb = window.sb;
+
+  const state = {
+    user: null,
+    tab: "overview",
+    msgFilter: "open", // open | closed | all
+    editingExperimentId: null,
+  };
+
+  // ---------- render shell ----------
+  function render() {
+    root.innerHTML = "";
+
+    if (!state.user) {
+      renderLogin();
       return;
     }
 
-    const { data } = await sb.auth.getSession();
-    if (data?.session) {
+    const shell = document.createElement("div");
+    shell.className = "admin-shell";
+
+    shell.innerHTML = `
+      <div class="admin-top">
+        <div class="admin-title">
+          <h3>Admin Console</h3>
+          <p>Manage messages, experiments, newsletter, and visitor count.</p>
+        </div>
+
+        <div class="admin-actions">
+          <button class="btn btn-secondary" id="admin-refresh" type="button">Refresh</button>
+          <button class="btn btn-secondary" id="admin-logout" type="button">Logout</button>
+        </div>
+      </div>
+
+      <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+        <button class="tab-btn" data-tab="overview" type="button">Overview</button>
+        <button class="tab-btn" data-tab="messages" type="button">Messages</button>
+        <button class="tab-btn" data-tab="experiments" type="button">Experiments</button>
+        <button class="tab-btn" data-tab="newsletter" type="button">Newsletter</button>
+      </div>
+
+      <div class="admin-panel" id="admin-panel"></div>
+    `;
+
+    root.appendChild(shell);
+
+    // tab active state
+    $$(".tab-btn", root).forEach((b) => {
+      b.classList.toggle("active", b.dataset.tab === state.tab);
+      b.addEventListener("click", () => {
+        state.tab = b.dataset.tab;
+        render(); // re-render whole panel to keep it simple & reliable
+      });
+    });
+
+    $("#admin-refresh", root).addEventListener("click", () => render());
+    $("#admin-logout", root).addEventListener("click", doLogout);
+
+    // render active tab
+    const panel = $("#admin-panel", root);
+    if (state.tab === "overview") renderOverview(panel);
+    if (state.tab === "messages") renderMessages(panel);
+    if (state.tab === "experiments") renderExperiments(panel);
+    if (state.tab === "newsletter") renderNewsletter(panel);
+  }
+
+  // ---------- login ----------
+  function renderLogin() {
+    const card = document.createElement("div");
+    card.className = "admin-card";
+    card.innerHTML = `
+      <h3 style="text-align:center;margin:0 0 .25rem;">Admin</h3>
+      <p style="text-align:center;margin:0 0 1.25rem;color:var(--text-muted);">
+        Sign in to access the console.
+      </p>
+
+      <form id="admin-login-form" class="admin-form">
+        <label>
+          Email
+          <input id="admin-email" type="email" autocomplete="username" required placeholder="${ADMIN_EMAIL}">
+        </label>
+        <label>
+          Password
+          <input id="admin-pass" type="password" autocomplete="current-password" required placeholder="••••••••">
+        </label>
+        <button class="btn btn-primary" type="submit" id="admin-login-btn">Login</button>
+      </form>
+
+      <p class="admin-hint">
+        Only <strong>${ADMIN_EMAIL}</strong> is allowed.
+      </p>
+    `;
+
+    root.appendChild(card);
+
+    const form = $("#admin-login-form", root);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setLoading(true);
+
+      const email = $("#admin-email", root).value.trim();
+      const password = $("#admin-pass", root).value;
+
       try {
-        await enforceAllowedAdmin(sb);
-        authBox.style.display = "none";
-        appBox.style.display = "";
-        showTab("stats");
-      } catch (e) {
-        msg(authMsg, e.message || "Auth failed", false);
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+
+        const u = data?.user;
+        if (!u || u.email !== ADMIN_EMAIL) {
+          await sb.auth.signOut();
+          toast("Not authorized for this admin console.", "error");
+          setLoading(false);
+          return;
+        }
+
+        state.user = u;
+        toast("Logged in.", "success");
+        setLoading(false);
+        render();
+      } catch (err) {
+        console.error("[ADMIN] login error", err);
+        toast(err?.message || "Login failed.", "error");
+        setLoading(false);
       }
+    });
+  }
+
+  async function doLogout() {
+    try {
+      await sb.auth.signOut();
+    } catch {}
+    state.user = null;
+    toast("Logged out.", "info");
+    render();
+  }
+
+  // ---------- data helpers ----------
+  async function safeSelect(table, queryFn) {
+    try {
+      const q = sb.from(table);
+      const res = await queryFn(q);
+      if (res.error) throw res.error;
+      return res.data || [];
+    } catch (e) {
+      console.warn(`[ADMIN] select failed for ${table}:`, e?.message || e);
+      return null;
     }
   }
 
-  if (loginForm) {
-    loginForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      msg(authMsg, "");
-
-      const sb = getSb();
-      if (!sb) {
-        msg(authMsg, "Supabase client not ready.", false);
-        return;
-      }
-
-      const email = $("admin-email").value.trim().toLowerCase();
-      const password = $("admin-password").value;
-
-      try {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-
-        await enforceAllowedAdmin(sb);
-
-        authBox.style.display = "none";
-        appBox.style.display = "";
-        showTab("stats");
-      } catch (err) {
-        msg(authMsg, err?.message || "Login failed", false);
-      }
-    });
+  async function safeCount(table, filterFn) {
+    try {
+      let q = sb.from(table).select("id", { count: "exact", head: true });
+      if (filterFn) q = filterFn(q);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    } catch (e) {
+      console.warn(`[ADMIN] count failed for ${table}:`, e?.message || e);
+      return null;
+    }
   }
 
-  if (logoutBtn) {
-    logoutBtn.addEventListener("click", async () => {
-      const sb = getSb();
-      if (sb) await sb.auth.signOut();
-      location.reload();
-    });
-  }
+  // ---------- Overview ----------
+  async function renderOverview(panel) {
+    panel.innerHTML = `
+      <div class="admin-grid">
+        <div class="stat-card">
+          <h4>Unique visitors</h4>
+          <div class="stat-value" id="stat-visitors">—</div>
+          <p class="stat-sub">Counts unique IP hashes (lifetime).</p>
+        </div>
 
-  // ---------- STATS (ONLY ONE NUMBER) ----------
-  async function loadVisitorCount() {
-    const el = $("unique-visitors");
-    if (!el) return;
-    el.textContent = "—";
+        <div class="stat-card">
+          <h4>Open messages</h4>
+          <div class="stat-value" id="stat-open">—</div>
+          <p class="stat-sub">Contact form submissions not closed.</p>
+        </div>
 
+        <div class="stat-card">
+          <h4>Closed messages</h4>
+          <div class="stat-value" id="stat-closed">—</div>
+          <p class="stat-sub">Messages you marked as closed.</p>
+        </div>
+
+        <div class="stat-card">
+          <h4>Published experiments</h4>
+          <div class="stat-value" id="stat-exp">—</div>
+          <p class="stat-sub">Visible on the live site.</p>
+        </div>
+
+        <div class="stat-card">
+          <h4>Newsletter list</h4>
+          <div class="stat-value" id="stat-news">—</div>
+          <p class="stat-sub">Emails opted in for updates.</p>
+        </div>
+      </div>
+    `;
+
+    setLoading(true);
+
+    // visitor stats from API
     try {
       const r = await fetch("/api/visitor-stats", { cache: "no-store" });
       const j = await r.json();
-      if (!j.ok) throw new Error(j.error || "Failed");
-      el.textContent = String(j.uniqueVisitors ?? 0);
+      $("#stat-visitors", panel).textContent =
+        typeof j?.unique_visitors === "number" ? String(j.unique_visitors) : "—";
     } catch (e) {
-      el.textContent = "—";
-      console.warn("[AARNA] visitor-stats failed:", e);
+      $("#stat-visitors", panel).textContent = "—";
     }
+
+    // counts from DB
+    const openCount =
+      (await safeCount("contact_messages", (q) => q.eq("status", "open"))) ??
+      (await safeCount("contact_messages", null)) ??
+      "—";
+
+    const closedCount =
+      (await safeCount("contact_messages", (q) => q.eq("status", "closed"))) ?? "—";
+
+    const expCount =
+      (await safeCount("experiments", (q) => q.eq("is_published", true))) ?? "—";
+
+    // newsletter can be its own table OR derived from contact_messages opt-in
+    const newsCount =
+      (await safeCount("newsletter_signups", null)) ??
+      (await safeCount("contact_messages", (q) => q.eq("newsletter_optin", true))) ??
+      "—";
+
+    $("#stat-open", panel).textContent = String(openCount);
+    $("#stat-closed", panel).textContent = String(closedCount);
+    $("#stat-exp", panel).textContent = String(expCount);
+    $("#stat-news", panel).textContent = String(newsCount);
+
+    setLoading(false);
   }
 
-  // ---------- EXPERIMENTS CRUD ----------
-  const expList = $("exp-list");
-  const expNew = $("exp-new");
-  const expModal = $("exp-modal");
-  const expClose = $("exp-close");
-  const expForm = $("exp-form");
-  const expMsg = $("exp-msg");
-  const expDelete = $("exp-delete");
+  // ---------- Messages ----------
+  async function renderMessages(panel) {
+    panel.innerHTML = `
+      <div class="admin-card">
+        <div class="admin-card-head">
+          <h3>Messages</h3>
+          <div class="row">
+            <label class="small-label">Filter</label>
+            <select id="msg-filter">
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+        </div>
 
-  let expCache = [];
+        <div id="msg-list" class="admin-list">Loading…</div>
+      </div>
+    `;
 
-  function openExpModal(mode, row) {
-    msg(expMsg, "");
-    $("exp-modal-title").textContent = mode === "edit" ? "Edit experiment" : "New experiment";
+    $("#msg-filter", panel).value = state.msgFilter;
+    $("#msg-filter", panel).addEventListener("change", () => {
+      state.msgFilter = $("#msg-filter", panel).value;
+      render(); // re-render
+    });
 
-    $("exp-id").value = row?.id || "";
-    $("exp-title").value = row?.title || "";
-    $("exp-status").value = row?.status_label || "";
-    $("exp-description").value = row?.description || "";
-    $("exp-sort").value = (row?.sort_order ?? 0);
-    $("exp-published").checked = row?.is_published !== false;
+    setLoading(true);
 
-    expDelete.style.display = mode === "edit" ? "" : "none";
-    expModal.style.display = "";
-  }
+    let rows = await safeSelect("contact_messages", (q) => {
+      let qq = q.select("*").order("created_at", { ascending: false }).limit(200);
+      if (state.msgFilter === "open") qq = qq.eq("status", "open");
+      if (state.msgFilter === "closed") qq = qq.eq("status", "closed");
+      return qq;
+    });
 
-  function closeExpModal() {
-    expModal.style.display = "none";
-  }
-
-  if (expNew) expNew.addEventListener("click", () => openExpModal("new", null));
-  if (expClose) expClose.addEventListener("click", closeExpModal);
-  if (expModal) expModal.addEventListener("click", (e) => {
-    if (e.target === expModal) closeExpModal();
-  });
-
-  async function loadExperiments() {
-    const sb = getSb();
-    if (!sb || !expList) return;
-
-    expList.innerHTML = `<div class="admin-item"><div class="meta">Loading…</div></div>`;
-
-    const { data, error } = await sb
-      .from("experiments")
-      .select("*")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      expList.innerHTML = `<div class="admin-item"><div class="meta">Failed to load experiments.</div></div>`;
-      console.error(error);
+    if (rows === null) {
+      $("#msg-list", panel).innerHTML = `
+        <div class="empty">
+          Could not load <code>contact_messages</code>. Check table name / RLS policies.
+        </div>`;
+      setLoading(false);
       return;
     }
 
-    expCache = data || [];
-    renderExperiments();
-  }
-
-  function renderExperiments() {
-    if (!expList) return;
-    if (!expCache.length) {
-      expList.innerHTML = `<div class="admin-item"><div class="meta">No experiments yet.</div></div>`;
+    if (!rows.length) {
+      $("#msg-list", panel).innerHTML = `<div class="empty">No messages.</div>`;
+      setLoading(false);
       return;
     }
 
-    expList.innerHTML = "";
-    expCache.forEach((x) => {
-      const item = document.createElement("div");
-      item.className = "admin-item";
+    $("#msg-list", panel).innerHTML = rows
+      .map((m) => {
+        const status = m.status || "open";
+        return `
+          <div class="list-item">
+            <div class="list-main">
+              <div class="list-title">
+                ${escapeHtml(m.name || "—")}
+                <span class="pill pill-${status === "closed" ? "muted" : "blue"}">${escapeHtml(status)}</span>
+              </div>
+              <div class="list-meta">
+                <span>${escapeHtml(m.email || "—")}</span>
+                <span>•</span>
+                <span>${escapeHtml(formatDate(m.created_at))}</span>
+              </div>
+              <div class="list-body">${escapeHtml(m.message || "")}</div>
+              ${
+                m.newsletter_optin
+                  ? `<div class="list-foot">✅ opted into newsletter</div>`
+                  : `<div class="list-foot">—</div>`
+              }
+            </div>
+            <div class="list-actions">
+              ${
+                status === "closed"
+                  ? `<button class="btn btn-secondary" data-action="reopen" data-id="${escapeHtml(m.id)}" type="button">Reopen</button>`
+                  : `<button class="btn btn-secondary" data-action="close" data-id="${escapeHtml(m.id)}" type="button">Close</button>`
+              }
+              <button class="btn btn-secondary" data-action="delete" data-id="${escapeHtml(m.id)}" type="button">Delete</button>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
 
-      const h = document.createElement("h4");
-      h.textContent = x.title || "Untitled";
+    // actions
+    $("#msg-list", panel).addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
 
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.textContent = `${x.is_published ? "Published" : "Hidden"} · ${x.status_label || "—"} · sort: ${x.sort_order ?? 0}`;
+      const id = btn.getAttribute("data-id");
+      const action = btn.getAttribute("data-action");
 
-      const p = document.createElement("p");
-      p.textContent = x.description || "";
-
-      const actions = document.createElement("div");
-      actions.className = "actions";
-
-      const edit = document.createElement("button");
-      edit.className = "btn btn-secondary";
-      edit.type = "button";
-      edit.textContent = "Edit";
-      edit.addEventListener("click", () => openExpModal("edit", x));
-
-      const toggle = document.createElement("button");
-      toggle.className = "btn btn-secondary";
-      toggle.type = "button";
-      toggle.textContent = x.is_published ? "Unpublish" : "Publish";
-      toggle.addEventListener("click", async () => {
-        const sb = getSb();
-        if (!sb) return;
-
-        const next = !x.is_published;
-        const { error } = await sb
-          .from("experiments")
-          .update({ is_published: next })
-          .eq("id", x.id);
-
-        if (error) return console.error(error);
-        x.is_published = next;
-        renderExperiments();
-      });
-
-      actions.appendChild(edit);
-      actions.appendChild(toggle);
-
-      item.appendChild(h);
-      item.appendChild(meta);
-      item.appendChild(p);
-      item.appendChild(actions);
-      expList.appendChild(item);
-    });
-  }
-
-  if (expForm) {
-    expForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      msg(expMsg, "");
-
-      const sb = getSb();
-      if (!sb) return msg(expMsg, "Supabase not ready.", false);
-
-      const id = $("exp-id").value.trim();
-      const payload = {
-        title: $("exp-title").value.trim(),
-        status_label: $("exp-status").value.trim(),
-        description: $("exp-description").value.trim(),
-        sort_order: Number($("exp-sort").value || 0),
-        is_published: $("exp-published").checked,
-      };
-
-      if (!payload.title || !payload.description) {
-        return msg(expMsg, "Title and description are required.", false);
-      }
-
-      try {
-        if (id) {
-          const { error } = await sb.from("experiments").update(payload).eq("id", id);
-          if (error) throw error;
-          msg(expMsg, "Saved.", true);
-        } else {
-          const { error } = await sb.from("experiments").insert([payload]);
-          if (error) throw error;
-          msg(expMsg, "Created.", true);
-        }
-
-        await loadExperiments();
-        setTimeout(closeExpModal, 300);
-      } catch (err) {
-        console.error(err);
-        msg(expMsg, err?.message || "Save failed.", false);
-      }
-    });
-  }
-
-  if (expDelete) {
-    expDelete.addEventListener("click", async () => {
-      msg(expMsg, "");
-      const sb = getSb();
-      if (!sb) return;
-
-      const id = $("exp-id").value.trim();
       if (!id) return;
 
-      if (!confirm("Delete this experiment?")) return;
+      try {
+        setLoading(true);
 
-      const { error } = await sb.from("experiments").delete().eq("id", id);
-      if (error) return msg(expMsg, error.message || "Delete failed.", false);
+        if (action === "close") {
+          const { error } = await sb.from("contact_messages").update({ status: "closed" }).eq("id", id);
+          if (error) throw error;
+          toast("Marked as closed.", "success");
+        }
 
-      msg(expMsg, "Deleted.", true);
-      await loadExperiments();
-      setTimeout(closeExpModal, 300);
-    });
-  }
+        if (action === "reopen") {
+          const { error } = await sb.from("contact_messages").update({ status: "open" }).eq("id", id);
+          if (error) throw error;
+          toast("Reopened.", "success");
+        }
 
-  // ---------- MESSAGES ----------
-  const msgList = $("msg-list");
-  const segBtns = Array.from(document.querySelectorAll(".admin-seg-btn"));
-  let currentMsgFilter = "open";
+        if (action === "delete") {
+          if (!confirm("Delete this message?")) {
+            setLoading(false);
+            return;
+          }
+          const { error } = await sb.from("contact_messages").delete().eq("id", id);
+          if (error) throw error;
+          toast("Deleted.", "success");
+        }
 
-  segBtns.forEach((b) => {
-    b.addEventListener("click", () => {
-      segBtns.forEach((x) => x.classList.toggle("active", x === b));
-      currentMsgFilter = b.dataset.filter;
-      loadMessages(currentMsgFilter);
-    });
-  });
-
-  async function loadMessages(filter) {
-    const sb = getSb();
-    if (!sb || !msgList) return;
-
-    msgList.innerHTML = `<div class="admin-item"><div class="meta">Loading…</div></div>`;
-
-    const q = sb
-      .from("contact_messages")
-      .select("*")
-      .eq("status", filter)
-      .order("created_at", { ascending: false });
-
-    const { data, error } = await q;
-    if (error) {
-      console.error(error);
-      msgList.innerHTML = `<div class="admin-item"><div class="meta">Failed to load messages.</div></div>`;
-      return;
-    }
-
-    const rows = data || [];
-    if (!rows.length) {
-      msgList.innerHTML = `<div class="admin-item"><div class="meta">No ${filter} messages.</div></div>`;
-      return;
-    }
-
-    msgList.innerHTML = "";
-    rows.forEach((m) => {
-      const item = document.createElement("div");
-      item.className = "admin-item";
-
-      const h = document.createElement("h4");
-      h.textContent = `${m.name || "—"} · ${m.email || "—"}`;
-
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.textContent = new Date(m.created_at).toLocaleString();
-
-      const p = document.createElement("p");
-      p.textContent = m.message || "";
-
-      const actions = document.createElement("div");
-      actions.className = "actions";
-
-      if (filter === "open") {
-        const close = document.createElement("button");
-        close.className = "btn btn-secondary";
-        close.type = "button";
-        close.textContent = "Mark closed";
-        close.addEventListener("click", async () => {
-          const { error } = await sb
-            .from("contact_messages")
-            .update({ status: "closed", closed_at: new Date().toISOString() })
-            .eq("id", m.id);
-
-          if (error) return console.error(error);
-          loadMessages("open");
-        });
-        actions.appendChild(close);
-      } else {
-        const reopen = document.createElement("button");
-        reopen.className = "btn btn-secondary";
-        reopen.type = "button";
-        reopen.textContent = "Reopen";
-        reopen.addEventListener("click", async () => {
-          const { error } = await sb
-            .from("contact_messages")
-            .update({ status: "open", closed_at: null })
-            .eq("id", m.id);
-
-          if (error) return console.error(error);
-          loadMessages("closed");
-        });
-        actions.appendChild(reopen);
+        setLoading(false);
+        render(); // refresh list
+      } catch (err) {
+        console.error("[ADMIN] message action error", err);
+        toast(err?.message || "Action failed.", "error");
+        setLoading(false);
       }
-
-      item.appendChild(h);
-      item.appendChild(meta);
-      item.appendChild(p);
-      item.appendChild(actions);
-
-      msgList.appendChild(item);
     });
+
+    setLoading(false);
   }
 
-  // ---------- NEWSLETTER ----------
-  const newsList = $("news-list");
+  // ---------- Experiments ----------
+  async function renderExperiments(panel) {
+    panel.innerHTML = `
+      <div class="admin-card">
+        <div class="admin-card-head">
+          <h3>Experiments</h3>
+          <div class="row">
+            <button class="btn btn-primary" id="exp-new" type="button">+ New</button>
+          </div>
+        </div>
 
-  async function loadNewsletter() {
-    const sb = getSb();
-    if (!sb || !newsList) return;
+        <div id="exp-form-wrap" class="exp-form-wrap" style="display:none;"></div>
+        <div id="exp-list" class="admin-list">Loading…</div>
+      </div>
+    `;
 
-    newsList.innerHTML = `<div class="admin-item"><div class="meta">Loading…</div></div>`;
+    $("#exp-new", panel).addEventListener("click", () => {
+      state.editingExperimentId = null;
+      showExperimentForm(panel, null);
+    });
 
-    const { data, error } = await sb
-      .from("newsletter_subscribers")
-      .select("*")
-      .order("created_at", { ascending: false });
+    setLoading(true);
 
-    if (error) {
-      console.error(error);
-      newsList.innerHTML = `<div class="admin-item"><div class="meta">Failed to load newsletter list.</div></div>`;
+    const rows = await safeSelect("experiments", (q) =>
+      q.select("*").order("created_at", { ascending: false }).limit(200)
+    );
+
+    if (rows === null) {
+      $("#exp-list", panel).innerHTML = `
+        <div class="empty">
+          Could not load <code>experiments</code>. Check table name / RLS policies.
+        </div>`;
+      setLoading(false);
       return;
     }
 
-    const rows = data || [];
-    if (!rows.length) {
-      newsList.innerHTML = `<div class="admin-item"><div class="meta">No subscribers yet.</div></div>`;
-      return;
-    }
+    $("#exp-list", panel).innerHTML = rows.length
+      ? rows
+          .map((x) => {
+            const pub = !!x.is_published;
+            return `
+              <div class="list-item">
+                <div class="list-main">
+                  <div class="list-title">
+                    ${escapeHtml(x.title || "Untitled")}
+                    <span class="pill ${pub ? "pill-green" : "pill-muted"}">${pub ? "published" : "draft"}</span>
+                  </div>
+                  <div class="list-meta">
+                    <span>${escapeHtml(x.status || "—")}</span>
+                    <span>•</span>
+                    <span>${escapeHtml(formatDate(x.created_at))}</span>
+                  </div>
+                  <div class="list-body">${escapeHtml(x.description || "")}</div>
+                </div>
+                <div class="list-actions">
+                  <button class="btn btn-secondary" data-action="edit" data-id="${escapeHtml(x.id)}" type="button">Edit</button>
+                  <button class="btn btn-secondary" data-action="toggle" data-id="${escapeHtml(x.id)}" data-pub="${pub ? "1" : "0"}" type="button">
+                    ${pub ? "Unpublish" : "Publish"}
+                  </button>
+                  <button class="btn btn-secondary" data-action="delete" data-id="${escapeHtml(x.id)}" type="button">Delete</button>
+                </div>
+              </div>
+            `;
+          })
+          .join("")
+      : `<div class="empty">No experiments yet. Click <strong>+ New</strong>.</div>`;
 
-    newsList.innerHTML = "";
-    rows.forEach((n) => {
-      const item = document.createElement("div");
-      item.className = "admin-item";
+    $("#exp-list", panel).addEventListener("click", async (e) => {
+      const btn = e.target.closest("button[data-action]");
+      if (!btn) return;
 
-      const h = document.createElement("h4");
-      h.textContent = n.email || "—";
+      const id = btn.getAttribute("data-id");
+      const action = btn.getAttribute("data-action");
+      if (!id) return;
 
-      const meta = document.createElement("div");
-      meta.className = "meta";
-      meta.textContent = `${n.name || "—"} · ${new Date(n.created_at).toLocaleString()}`;
+      try {
+        if (action === "edit") {
+          const row = rows.find((r) => String(r.id) === String(id));
+          state.editingExperimentId = id;
+          showExperimentForm(panel, row);
+          return;
+        }
 
-      item.appendChild(h);
-      item.appendChild(meta);
-      newsList.appendChild(item);
+        setLoading(true);
+
+        if (action === "toggle") {
+          const currently = btn.getAttribute("data-pub") === "1";
+          const { error } = await sb.from("experiments").update({ is_published: !currently }).eq("id", id);
+          if (error) throw error;
+          toast(!currently ? "Published." : "Unpublished.", "success");
+        }
+
+        if (action === "delete") {
+          if (!confirm("Delete this experiment?")) {
+            setLoading(false);
+            return;
+          }
+          const { error } = await sb.from("experiments").delete().eq("id", id);
+          if (error) throw error;
+          toast("Deleted.", "success");
+        }
+
+        setLoading(false);
+        render();
+      } catch (err) {
+        console.error("[ADMIN] experiment action error", err);
+        toast(err?.message || "Action failed.", "error");
+        setLoading(false);
+      }
+    });
+
+    setLoading(false);
+  }
+
+  function showExperimentForm(panel, row) {
+    const wrap = $("#exp-form-wrap", panel);
+    wrap.style.display = "block";
+
+    const isEdit = !!row;
+    wrap.innerHTML = `
+      <div class="admin-subcard">
+        <div class="admin-subhead">
+          <h4 style="margin:0;text-align:center;">${isEdit ? "Edit experiment" : "New experiment"}</h4>
+        </div>
+
+        <form id="exp-form" class="admin-form">
+          <label>
+            Status tag (e.g. Upcoming / Planned)
+            <input id="exp-status" type="text" placeholder="Upcoming" value="${escapeHtml(row?.status || "")}">
+          </label>
+
+          <label>
+            Title
+            <input id="exp-title" type="text" required placeholder="Pilot · XYZ mangrove reserve" value="${escapeHtml(row?.title || "")}">
+          </label>
+
+          <label>
+            Description
+            <textarea id="exp-desc" rows="4" required placeholder="Short description…">${escapeHtml(row?.description || "")}</textarea>
+          </label>
+
+          <label class="row-check">
+            <input id="exp-pub" type="checkbox" ${row?.is_published ? "checked" : ""}>
+            Publish on live site
+          </label>
+
+          <div class="row-actions">
+            <button class="btn btn-primary" type="submit">${isEdit ? "Save changes" : "Create"}</button>
+            <button class="btn btn-secondary" type="button" id="exp-cancel">Cancel</button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    $("#exp-cancel", wrap).addEventListener("click", () => {
+      wrap.style.display = "none";
+      wrap.innerHTML = "";
+      state.editingExperimentId = null;
+    });
+
+    $("#exp-form", wrap).addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const payload = {
+        status: $("#exp-status", wrap).value.trim(),
+        title: $("#exp-title", wrap).value.trim(),
+        description: $("#exp-desc", wrap).value.trim(),
+        is_published: $("#exp-pub", wrap).checked,
+      };
+
+      try {
+        setLoading(true);
+
+        if (isEdit) {
+          const { error } = await sb.from("experiments").update(payload).eq("id", row.id);
+          if (error) throw error;
+          toast("Updated.", "success");
+        } else {
+          const { error } = await sb.from("experiments").insert(payload);
+          if (error) throw error;
+          toast("Created.", "success");
+        }
+
+        setLoading(false);
+        render();
+      } catch (err) {
+        console.error("[ADMIN] save experiment error", err);
+        toast(err?.message || "Save failed.", "error");
+        setLoading(false);
+      }
     });
   }
 
-  // boot
-  bootIfSession();
+  // ---------- Newsletter ----------
+  async function renderNewsletter(panel) {
+    panel.innerHTML = `
+      <div class="admin-card">
+        <div class="admin-card-head">
+          <h3>Newsletter</h3>
+          <div class="row">
+            <button class="btn btn-secondary" id="news-copy" type="button">Copy emails</button>
+          </div>
+        </div>
+
+        <div id="news-list" class="admin-list">Loading…</div>
+      </div>
+    `;
+
+    setLoading(true);
+
+    // Prefer dedicated table; fallback to contact_messages optin
+    let emails = await safeSelect("newsletter_signups", (q) =>
+      q.select("*").order("created_at", { ascending: false }).limit(500)
+    );
+
+    if (emails === null) {
+      const optins = await safeSelect("contact_messages", (q) =>
+        q.select("email,created_at").eq("newsletter_optin", true).order("created_at", { ascending: false }).limit(500)
+      );
+      emails = (optins || []).map((x) => ({ email: x.email, created_at: x.created_at }));
+    }
+
+    if (!emails || !emails.length) {
+      $("#news-list", panel).innerHTML = `<div class="empty">No newsletter emails yet.</div>`;
+      setLoading(false);
+      return;
+    }
+
+    $("#news-list", panel).innerHTML = emails
+      .map(
+        (n) => `
+        <div class="list-item">
+          <div class="list-main">
+            <div class="list-title">${escapeHtml(n.email || "—")}</div>
+            <div class="list-meta">${escapeHtml(formatDate(n.created_at))}</div>
+          </div>
+        </div>`
+      )
+      .join("");
+
+    $("#news-copy", panel).addEventListener("click", async () => {
+      const list = emails.map((x) => x.email).filter(Boolean).join(", ");
+      try {
+        await navigator.clipboard.writeText(list);
+        toast("Copied.", "success");
+      } catch {
+        toast("Copy failed.", "error");
+      }
+    });
+
+    setLoading(false);
+  }
+
+  // ---------- init ----------
+  async function init() {
+    try {
+      const { data } = await sb.auth.getSession();
+      const session = data?.session;
+
+      if (session?.user?.email === ADMIN_EMAIL) {
+        state.user = session.user;
+      } else if (session) {
+        await sb.auth.signOut();
+        state.user = null;
+      }
+    } catch (e) {
+      state.user = null;
+    }
+
+    render();
+  }
+
+  init();
 })();
