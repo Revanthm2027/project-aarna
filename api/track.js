@@ -1,57 +1,69 @@
 // api/track.js
-export default async function handler(req, res) {
-  try {
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const IP_HASH_SALT = process.env.IP_HASH_SALT || "aarna_default_salt_change_me";
+// Stores exactly ONE record per unique IP (hashed with a secret salt).
+// No repeats, ever.
 
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return res.status(500).json({ error: "Missing env: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" });
+const crypto = require("crypto");
+
+module.exports = async (req, res) => {
+  try {
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Cache-Control", "no-store");
+
+    if (req.method !== "GET" && req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "Method not allowed" });
     }
 
-    // Get IP (Vercel / proxies)
-    const xff = (req.headers["x-forwarded-for"] || "").toString();
-    const rawIp =
-      (xff.split(",")[0] || "").trim() ||
-      (req.headers["x-real-ip"] || "").toString().trim() ||
-      req.socket?.remoteAddress ||
-      "";
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const VISITOR_SALT = process.env.VISITOR_SALT;
 
-    // Normalize some common formats
-    const ip = rawIp.replace("::ffff:", "").trim();
+    if (!SUPABASE_URL || !SERVICE_ROLE || !VISITOR_SALT) {
+      return res.status(500).json({
+        ok: false,
+        error: "Missing env: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY / VISITOR_SALT",
+      });
+    }
 
-    // Hash IP with salt (so you don't store raw IP)
-    const ip_hash = await sha256(`${IP_HASH_SALT}:${ip}`);
+    // Vercel forwards IP here most reliably
+    const fwd =
+      (req.headers["x-vercel-forwarded-for"] ||
+        req.headers["x-forwarded-for"] ||
+        "")
+        .toString()
+        .split(",")[0]
+        .trim();
 
-    // Upsert into unique_visitors (one row per IP)
-    const now = new Date().toISOString();
-    const payload = { ip_hash, last_seen: now, first_seen: now };
+    const ip =
+      fwd ||
+      (req.socket && req.socket.remoteAddress) ||
+      "0.0.0.0";
 
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/unique_visitors?on_conflict=ip_hash`, {
+    const ip_hash = crypto
+      .createHash("sha256")
+      .update(`${ip}:${VISITOR_SALT}`)
+      .digest("hex");
+
+    // Insert once. If already exists, ignore (no duplicate count).
+    const url = `${SUPABASE_URL}/rest/v1/unique_visitors?on_conflict=ip_hash`;
+
+    const r = await fetch(url, {
       method: "POST",
       headers: {
-        apikey: SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: SERVICE_ROLE,
+        Authorization: `Bearer ${SERVICE_ROLE}`,
         "Content-Type": "application/json",
-        Prefer: "resolution=merge-duplicates,return=minimal",
+        Prefer: "resolution=ignore-duplicates",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ ip_hash }),
     });
 
     if (!r.ok) {
-      const err = await r.text();
-      res.setHeader("Cache-Control", "no-store");
-      return res.status(r.status).json({ error: err });
+      const t = await r.text();
+      return res.status(500).json({ ok: false, error: t });
     }
 
-    res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({ ok: true });
   } catch (e) {
-    return res.status(500).json({ error: String(e?.message || e) });
+    return res.status(500).json({ ok: false, error: String(e?.message || e) });
   }
-}
-
-async function sha256(input) {
-  const crypto = await import("crypto");
-  return crypto.createHash("sha256").update(input).digest("hex");
-}
+};

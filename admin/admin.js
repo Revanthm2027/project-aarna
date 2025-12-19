@@ -1,426 +1,474 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const ADMIN_EMAIL = "projectaarna@protonmail.com";
-  const sb = window.sb;
+// js/admin.js
+(function () {
+  "use strict";
 
-  // ---------- Theme ----------
-  const root = document.documentElement;
-  const themeToggle = document.getElementById("theme-toggle");
-  const THEME_KEY = "aarna-theme";
-  root.setAttribute("data-theme", localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark");
-  if (themeToggle) {
-    const icon = themeToggle.querySelector(".theme-icon");
-    if (icon) icon.textContent = root.getAttribute("data-theme") === "light" ? "☀︎" : "☾";
-    themeToggle.addEventListener("click", () => {
-      const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
-      localStorage.setItem(THEME_KEY, next);
-      root.setAttribute("data-theme", next);
-      const icon2 = themeToggle.querySelector(".theme-icon");
-      if (icon2) icon2.textContent = next === "light" ? "☀︎" : "☾";
+  const ADMIN_EMAIL_ALLOWED = "projectaarna@protonmail.com";
+
+  function $(id) { return document.getElementById(id); }
+
+  function msg(el, text, ok = false) {
+    if (!el) return;
+    el.textContent = text || "";
+    el.style.color = ok ? "rgba(160,255,200,0.95)" : "rgba(255,180,180,0.95)";
+  }
+
+  // theme
+  const themeBtn = $("theme-toggle");
+  const themeIcon = themeBtn ? themeBtn.querySelector(".theme-icon") : null;
+  function setTheme(t) {
+    document.documentElement.setAttribute("data-theme", t);
+    localStorage.setItem("aarna_theme", t);
+    if (themeIcon) themeIcon.textContent = t === "dark" ? "☾" : "☀";
+  }
+  const savedTheme = localStorage.getItem("aarna_theme");
+  if (savedTheme) setTheme(savedTheme);
+  if (themeBtn) {
+    themeBtn.addEventListener("click", () => {
+      const cur = document.documentElement.getAttribute("data-theme") || "dark";
+      setTheme(cur === "dark" ? "light" : "dark");
     });
   }
 
-  // ---------- DOM ----------
-  const authCard = document.getElementById("auth-card");
-  const dash = document.getElementById("dashboard");
-  const form = document.getElementById("admin-login-form");
-  const statusEl = document.getElementById("login-status");
-  const logoutBtn = document.getElementById("logout-btn");
-  const refreshBtn = document.getElementById("refresh-btn");
+  function getSb() {
+    return window.sb || null;
+  }
 
-  // Tabs
-  const tabBtns = Array.from(document.querySelectorAll(".admin-tab"));
+  const authBox = $("admin-auth");
+  const appBox = $("admin-app");
+  const loginForm = $("admin-login-form");
+  const authMsg = $("admin-auth-msg");
+
+  const logoutBtn = $("admin-logout");
+
+  const tabs = Array.from(document.querySelectorAll(".admin-tab"));
   const panels = {
-    stats: document.getElementById("panel-stats"),
-    messages: document.getElementById("panel-messages"),
-    experiments: document.getElementById("panel-experiments"),
-    newsletter: document.getElementById("panel-newsletter"),
+    stats: $("tab-stats"),
+    experiments: $("tab-experiments"),
+    messages: $("tab-messages"),
+    newsletter: $("tab-newsletter"),
   };
 
-  function setTab(name) {
-    tabBtns.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+  function showTab(name) {
+    tabs.forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
     Object.entries(panels).forEach(([k, el]) => {
-      if (!el) return;
-      el.style.display = k === name ? "block" : "none";
+      if (el) el.style.display = k === name ? "" : "none";
     });
-  }
-  tabBtns.forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
 
-  // Stats elements
-  const statNew = document.getElementById("stat-new");
-  const statContacted = document.getElementById("stat-contacted");
-  const statClosed = document.getElementById("stat-closed");
-  const statSubs = document.getElementById("stat-subs");
-  const statVToday = document.getElementById("stat-v-today");
-  const statV7d = document.getElementById("stat-v-7d");
-  const statV30d = document.getElementById("stat-v-30d");
-  const statPV30d = document.getElementById("stat-pv-30d");
-
-  // Messages tables
-  const tbodyNew = document.getElementById("contacts-new-tbody");
-  const tbodyContacted = document.getElementById("contacts-contacted-tbody");
-  const tbodyClosed = document.getElementById("contacts-closed-tbody");
-
-  // Newsletter
-  const subsTbody = document.getElementById("subs-tbody");
-
-  // Experiments
-  const expTbody = document.getElementById("experiments-tbody");
-  const newExpBtn = document.getElementById("new-exp-btn");
-  const expFormCard = document.getElementById("experiment-form-card");
-
-  const expForm = document.getElementById("experiment-form");
-  const expFormTitle = document.getElementById("exp-form-title");
-  const expId = document.getElementById("exp-id");
-  const expTitle = document.getElementById("exp-title");
-  const expStatus = document.getElementById("exp-status");
-  const expLocation = document.getElementById("exp-location");
-  const expSummary = document.getElementById("exp-summary");
-  const expSort = document.getElementById("exp-sort");
-  const expPublished = document.getElementById("exp-published");
-  const expSaveBtn = document.getElementById("exp-save-btn");
-  const expCancelBtn = document.getElementById("exp-cancel-btn");
-  const expDeleteBtn = document.getElementById("exp-delete-btn");
-  const expStatusText = document.getElementById("exp-status-text");
-
-  const esc = (s) =>
-    String(s || "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;");
-
-  const showLogin = (msg = "") => {
-    if (authCard) authCard.style.display = "block";
-    if (dash) dash.style.display = "none";
-    if (statusEl) statusEl.textContent = msg;
-  };
-
-  const showDash = () => {
-    if (authCard) authCard.style.display = "none";
-    if (dash) dash.style.display = "block";
-  };
-
-  function openExpForm(mode = "new") {
-    if (!expFormCard) return;
-    expFormCard.style.display = "block";
-    if (mode === "new") {
-      if (expFormTitle) expFormTitle.textContent = "New experiment";
-      if (expDeleteBtn) expDeleteBtn.style.display = "none";
-    }
+    // lazy-load per tab
+    if (name === "experiments") loadExperiments();
+    if (name === "messages") loadMessages(currentMsgFilter);
+    if (name === "newsletter") loadNewsletter();
+    if (name === "stats") loadVisitorCount();
   }
 
-  function closeExpForm() {
-    if (!expFormCard) return;
-    expFormCard.style.display = "none";
-    resetExpForm();
-  }
+  tabs.forEach((b) => {
+    b.addEventListener("click", () => showTab(b.dataset.tab));
+  });
 
-  function resetExpForm() {
-    if (expId) expId.value = "";
-    if (expTitle) expTitle.value = "";
-    if (expStatus) expStatus.value = "Upcoming";
-    if (expLocation) expLocation.value = "";
-    if (expSummary) expSummary.value = "";
-    if (expSort) expSort.value = 100;
-    if (expPublished) expPublished.checked = true;
-    if (expStatusText) expStatusText.textContent = "";
-  }
-
-  async function enforceAdmin() {
-    if (!sb) return { ok: false, reason: "Supabase not initialized. Check script paths." };
-
-    const { data: userRes, error: userErr } = await sb.auth.getUser();
-    if (userErr) return { ok: false, reason: `Auth error: ${userErr.message}` };
-
-    const user = userRes?.user;
-    if (!user) return { ok: false, reason: "" };
-
-    if ((user.email || "").toLowerCase() !== ADMIN_EMAIL.toLowerCase()) {
+  async function enforceAllowedAdmin(sb) {
+    const { data } = await sb.auth.getUser();
+    const email = data?.user?.email?.toLowerCase() || "";
+    if (email !== ADMIN_EMAIL_ALLOWED) {
       await sb.auth.signOut();
-      return { ok: false, reason: "Access denied (admin email only)." };
-    }
-
-    const { data: prof, error } = await sb.from("profiles").select("role").eq("id", user.id).single();
-    if (error) return { ok: false, reason: `profiles policy error: ${error.message}` };
-    if (!prof || prof.role !== "admin") return { ok: false, reason: "Role is not admin. Set role='admin'." };
-
-    return { ok: true };
-  }
-
-  function attachStatusHandlers(tbody) {
-    if (!tbody) return;
-    tbody.querySelectorAll(".status-select").forEach((sel) => {
-      sel.addEventListener("change", async (e) => {
-        const id = Number(e.target.getAttribute("data-id"));
-        const status = e.target.value;
-        const { error } = await sb.from("contacts").update({ status }).eq("id", id);
-        if (error) console.error("[AARNA] status update error:", error);
-        await loadMessages();
-        await loadStatsOnly();
-      });
-    });
-  }
-
-  function renderContacts(tbody, rows) {
-    if (!tbody) return;
-    tbody.innerHTML = (rows || [])
-      .map((r) => {
-        const time = r.created_at ? new Date(r.created_at).toLocaleString() : "—";
-        const status = r.status || "new";
-        return `
-          <tr style="border-top:1px solid rgba(148,163,184,0.25);">
-            <td style="padding:10px; color: var(--text-muted); white-space:nowrap;">${esc(time)}</td>
-            <td style="padding:10px;">${esc(r.name)}</td>
-            <td style="padding:10px;">
-              <a href="mailto:${esc(r.email)}" style="color: var(--metal-cyan); text-decoration:none;">${esc(r.email)}</a>
-            </td>
-            <td style="padding:10px; color: var(--text-muted); max-width: 520px;">${esc(r.message)}</td>
-            <td style="padding:10px;">
-              <select data-id="${r.id}" class="status-select"
-                style="padding:6px; border-radius:10px; background: rgba(15,23,42,0.98); color: var(--text-main); border:1px solid rgba(148,163,184,0.6);">
-                ${["new","contacted","closed"].map(s => `<option ${s===status?"selected":""} value="${s}">${s}</option>`).join("")}
-              </select>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
-    attachStatusHandlers(tbody);
-  }
-
-  async function loadStatsOnly() {
-    const [newRes, contactedRes, closedRes, subsRes] = await Promise.all([
-      sb.from("contacts").select("id").eq("status", "new"),
-      sb.from("contacts").select("id").eq("status", "contacted"),
-      sb.from("contacts").select("id").eq("status", "closed"),
-      sb.from("newsletter_subscribers").select("id"),
-    ]);
-
-    if (statNew) statNew.textContent = String((newRes.data || []).length);
-    if (statContacted) statContacted.textContent = String((contactedRes.data || []).length);
-    if (statClosed) statClosed.textContent = String((closedRes.data || []).length);
-    if (statSubs) statSubs.textContent = String((subsRes.data || []).length);
-
-    // Visitor stats (serverless); if not available locally, just show —
-    try {
-      const r = await fetch("/api/visitor-stats", { cache: "no-store" });
-      if (!r.ok) throw new Error("visitor-stats failed");
-      const j = await r.json();
-      if (statVToday) statVToday.textContent = String(j.unique_today ?? "—");
-      if (statV7d) statV7d.textContent = String(j.unique_7d ?? "—");
-      if (statV30d) statV30d.textContent = String(j.unique_30d ?? "—");
-      if (statPV30d) statPV30d.textContent = String(j.pageviews_30d ?? "—");
-    } catch {
-      if (statVToday) statVToday.textContent = "—";
-      if (statV7d) statV7d.textContent = "—";
-      if (statV30d) statV30d.textContent = "—";
-      if (statPV30d) statPV30d.textContent = "—";
+      throw new Error("Not authorized for this admin.");
     }
   }
 
-  async function loadMessages() {
-    const [newRes, contactedRes, closedRes] = await Promise.all([
-      sb.from("contacts").select("id,name,email,message,created_at,status").eq("status", "new").order("created_at", { ascending: false }).limit(120),
-      sb.from("contacts").select("id,name,email,message,created_at,status").eq("status", "contacted").order("created_at", { ascending: false }).limit(120),
-      sb.from("contacts").select("id,name,email,message,created_at,status").eq("status", "closed").order("created_at", { ascending: false }).limit(200),
-    ]);
+  async function bootIfSession() {
+    const sb = getSb();
+    if (!sb) {
+      msg(authMsg, "Supabase client not ready. Check supabaseClient.js.", false);
+      return;
+    }
 
-    renderContacts(tbodyNew, newRes.data || []);
-    renderContacts(tbodyContacted, contactedRes.data || []);
-    renderContacts(tbodyClosed, closedRes.data || []);
+    const { data } = await sb.auth.getSession();
+    if (data?.session) {
+      try {
+        await enforceAllowedAdmin(sb);
+        authBox.style.display = "none";
+        appBox.style.display = "";
+        showTab("stats");
+      } catch (e) {
+        msg(authMsg, e.message || "Auth failed", false);
+      }
+    }
   }
 
-  async function loadNewsletter() {
-    const subsRes = await sb.from("newsletter_subscribers").select("email,created_at").order("created_at", { ascending: false }).limit(500);
-    const subs = subsRes.data || [];
-    if (!subsTbody) return;
-
-    subsTbody.innerHTML = subs
-      .map((r) => {
-        const time = r.created_at ? new Date(r.created_at).toLocaleString() : "—";
-        return `<tr style="border-top:1px solid rgba(148,163,184,0.25);">
-          <td style="padding:10px; color: var(--text-muted); white-space:nowrap;">${esc(time)}</td>
-          <td style="padding:10px;">${esc(r.email)}</td>
-        </tr>`;
-      })
-      .join("");
-  }
-
-  async function loadExperiments() {
-    const res = await sb
-      .from("experiments")
-      .select("id,title,status,summary,location,sort_order,is_published,created_at")
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false });
-
-    const rows = res.data || [];
-    if (!expTbody) return;
-
-    expTbody.innerHTML = rows
-      .map((e) => {
-        return `
-          <tr style="border-top:1px solid rgba(148,163,184,0.25);">
-            <td style="padding:10px;">${esc(e.title)}</td>
-            <td style="padding:10px; color: var(--text-muted); white-space:nowrap;">${esc(e.status)}</td>
-            <td style="padding:10px;">${e.is_published ? "Yes" : "No"}</td>
-            <td style="padding:10px;">${Number(e.sort_order ?? 100)}</td>
-            <td style="padding:10px; display:flex; gap:8px; flex-wrap:wrap; justify-content:center;">
-              <button class="btn btn-secondary exp-edit" data-id="${e.id}">Edit</button>
-              <button class="btn btn-secondary exp-toggle" data-id="${e.id}" data-next="${e.is_published ? "false" : "true"}">
-                ${e.is_published ? "Unpublish" : "Publish"}
-              </button>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
-
-    expTbody.querySelectorAll(".exp-edit").forEach((b) => {
-      b.addEventListener("click", async () => {
-        const id = Number(b.dataset.id);
-        const one = rows.find((x) => x.id === id);
-        if (!one) return;
-
-        openExpForm("edit");
-        if (expFormTitle) expFormTitle.textContent = "Edit experiment";
-        if (expDeleteBtn) expDeleteBtn.style.display = "inline-flex";
-
-        if (expId) expId.value = String(one.id);
-        if (expTitle) expTitle.value = one.title || "";
-        if (expStatus) expStatus.value = one.status || "Upcoming";
-        if (expLocation) expLocation.value = one.location || "";
-        if (expSummary) expSummary.value = one.summary || "";
-        if (expSort) expSort.value = String(one.sort_order ?? 100);
-        if (expPublished) expPublished.checked = !!one.is_published;
-        if (expStatusText) expStatusText.textContent = "";
-      });
-    });
-
-    expTbody.querySelectorAll(".exp-toggle").forEach((b) => {
-      b.addEventListener("click", async () => {
-        const id = Number(b.dataset.id);
-        const next = b.dataset.next === "true";
-        await sb.from("experiments").update({ is_published: next, updated_at: new Date().toISOString() }).eq("id", id);
-        await loadExperiments();
-      });
-    });
-  }
-
-  async function loadAll() {
-    await Promise.all([loadStatsOnly(), loadMessages(), loadNewsletter(), loadExperiments()]);
-  }
-
-  // ---------- Boot ----------
-  (async () => {
-    const gate = await enforceAdmin();
-    if (!gate.ok) return showLogin(gate.reason);
-    showDash();
-    setTab("stats");
-    closeExpForm(); // hidden by default
-    await loadAll();
-  })();
-
-  // ---------- Login ----------
-  if (form) {
-    form.addEventListener("submit", async (e) => {
+  if (loginForm) {
+    loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (statusEl) statusEl.textContent = "Signing in…";
+      msg(authMsg, "");
 
-      const fd = new FormData(form);
-      const email = String(fd.get("email") || "").trim();
-      const password = String(fd.get("password") || "").trim();
-
-      const { error } = await sb.auth.signInWithPassword({ email, password });
-      if (error) {
-        if (statusEl) statusEl.textContent = error.message || "Login failed.";
+      const sb = getSb();
+      if (!sb) {
+        msg(authMsg, "Supabase client not ready.", false);
         return;
       }
 
-      const gate = await enforceAdmin();
-      if (!gate.ok) return showLogin(gate.reason);
+      const email = $("admin-email").value.trim().toLowerCase();
+      const password = $("admin-password").value;
 
-      showDash();
-      setTab("stats");
-      closeExpForm();
-      await loadAll();
-      if (statusEl) statusEl.textContent = "";
+      try {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+
+        await enforceAllowedAdmin(sb);
+
+        authBox.style.display = "none";
+        appBox.style.display = "";
+        showTab("stats");
+      } catch (err) {
+        msg(authMsg, err?.message || "Login failed", false);
+      }
     });
   }
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", async () => {
-      await sb.auth.signOut();
-      showLogin("Logged out.");
+      const sb = getSb();
+      if (sb) await sb.auth.signOut();
+      location.reload();
     });
   }
 
-  if (refreshBtn) {
-    refreshBtn.addEventListener("click", async () => {
-      const gate = await enforceAdmin();
-      if (!gate.ok) return showLogin(gate.reason);
-      await loadAll();
-    });
+  // ---------- STATS (ONLY ONE NUMBER) ----------
+  async function loadVisitorCount() {
+    const el = $("unique-visitors");
+    if (!el) return;
+    el.textContent = "—";
+
+    try {
+      const r = await fetch("/api/visitor-stats", { cache: "no-store" });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || "Failed");
+      el.textContent = String(j.uniqueVisitors ?? 0);
+    } catch (e) {
+      el.textContent = "—";
+      console.warn("[AARNA] visitor-stats failed:", e);
+    }
   }
 
-  // ---------- Experiments UI ----------
-  if (newExpBtn) {
-    newExpBtn.addEventListener("click", () => {
-      resetExpForm();
-      openExpForm("new");
-      setTab("experiments");
-    });
+  // ---------- EXPERIMENTS CRUD ----------
+  const expList = $("exp-list");
+  const expNew = $("exp-new");
+  const expModal = $("exp-modal");
+  const expClose = $("exp-close");
+  const expForm = $("exp-form");
+  const expMsg = $("exp-msg");
+  const expDelete = $("exp-delete");
+
+  let expCache = [];
+
+  function openExpModal(mode, row) {
+    msg(expMsg, "");
+    $("exp-modal-title").textContent = mode === "edit" ? "Edit experiment" : "New experiment";
+
+    $("exp-id").value = row?.id || "";
+    $("exp-title").value = row?.title || "";
+    $("exp-status").value = row?.status_label || "";
+    $("exp-description").value = row?.description || "";
+    $("exp-sort").value = (row?.sort_order ?? 0);
+    $("exp-published").checked = row?.is_published !== false;
+
+    expDelete.style.display = mode === "edit" ? "" : "none";
+    expModal.style.display = "";
   }
 
-  if (expCancelBtn) expCancelBtn.addEventListener("click", () => closeExpForm());
+  function closeExpModal() {
+    expModal.style.display = "none";
+  }
+
+  if (expNew) expNew.addEventListener("click", () => openExpModal("new", null));
+  if (expClose) expClose.addEventListener("click", closeExpModal);
+  if (expModal) expModal.addEventListener("click", (e) => {
+    if (e.target === expModal) closeExpModal();
+  });
+
+  async function loadExperiments() {
+    const sb = getSb();
+    if (!sb || !expList) return;
+
+    expList.innerHTML = `<div class="admin-item"><div class="meta">Loading…</div></div>`;
+
+    const { data, error } = await sb
+      .from("experiments")
+      .select("*")
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      expList.innerHTML = `<div class="admin-item"><div class="meta">Failed to load experiments.</div></div>`;
+      console.error(error);
+      return;
+    }
+
+    expCache = data || [];
+    renderExperiments();
+  }
+
+  function renderExperiments() {
+    if (!expList) return;
+    if (!expCache.length) {
+      expList.innerHTML = `<div class="admin-item"><div class="meta">No experiments yet.</div></div>`;
+      return;
+    }
+
+    expList.innerHTML = "";
+    expCache.forEach((x) => {
+      const item = document.createElement("div");
+      item.className = "admin-item";
+
+      const h = document.createElement("h4");
+      h.textContent = x.title || "Untitled";
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${x.is_published ? "Published" : "Hidden"} · ${x.status_label || "—"} · sort: ${x.sort_order ?? 0}`;
+
+      const p = document.createElement("p");
+      p.textContent = x.description || "";
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+
+      const edit = document.createElement("button");
+      edit.className = "btn btn-secondary";
+      edit.type = "button";
+      edit.textContent = "Edit";
+      edit.addEventListener("click", () => openExpModal("edit", x));
+
+      const toggle = document.createElement("button");
+      toggle.className = "btn btn-secondary";
+      toggle.type = "button";
+      toggle.textContent = x.is_published ? "Unpublish" : "Publish";
+      toggle.addEventListener("click", async () => {
+        const sb = getSb();
+        if (!sb) return;
+
+        const next = !x.is_published;
+        const { error } = await sb
+          .from("experiments")
+          .update({ is_published: next })
+          .eq("id", x.id);
+
+        if (error) return console.error(error);
+        x.is_published = next;
+        renderExperiments();
+      });
+
+      actions.appendChild(edit);
+      actions.appendChild(toggle);
+
+      item.appendChild(h);
+      item.appendChild(meta);
+      item.appendChild(p);
+      item.appendChild(actions);
+      expList.appendChild(item);
+    });
+  }
 
   if (expForm) {
     expForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (expStatusText) expStatusText.textContent = "Saving…";
-      if (expSaveBtn) expSaveBtn.disabled = true;
+      msg(expMsg, "");
 
+      const sb = getSb();
+      if (!sb) return msg(expMsg, "Supabase not ready.", false);
+
+      const id = $("exp-id").value.trim();
       const payload = {
-        title: expTitle ? expTitle.value.trim() : "",
-        status: expStatus ? expStatus.value : "Upcoming",
-        summary: expSummary ? expSummary.value.trim() : "",
-        location: expLocation ? expLocation.value.trim() || null : null,
-        sort_order: Number(expSort ? expSort.value || 100 : 100),
-        is_published: !!(expPublished && expPublished.checked),
-        updated_at: new Date().toISOString(),
+        title: $("exp-title").value.trim(),
+        status_label: $("exp-status").value.trim(),
+        description: $("exp-description").value.trim(),
+        sort_order: Number($("exp-sort").value || 0),
+        is_published: $("exp-published").checked,
       };
 
+      if (!payload.title || !payload.description) {
+        return msg(expMsg, "Title and description are required.", false);
+      }
+
       try {
-        if (expId && expId.value) {
-          const id = Number(expId.value);
+        if (id) {
           const { error } = await sb.from("experiments").update(payload).eq("id", id);
           if (error) throw error;
+          msg(expMsg, "Saved.", true);
         } else {
-          const { error } = await sb.from("experiments").insert([{ ...payload }]);
+          const { error } = await sb.from("experiments").insert([payload]);
           if (error) throw error;
+          msg(expMsg, "Created.", true);
         }
-        if (expStatusText) expStatusText.textContent = "Saved.";
+
         await loadExperiments();
+        setTimeout(closeExpModal, 300);
       } catch (err) {
-        if (expStatusText) expStatusText.textContent = `Error: ${err?.message || "could not save"}`;
-      } finally {
-        if (expSaveBtn) expSaveBtn.disabled = false;
+        console.error(err);
+        msg(expMsg, err?.message || "Save failed.", false);
       }
     });
   }
 
-  if (expDeleteBtn) {
-    expDeleteBtn.addEventListener("click", async () => {
-      if (!expId || !expId.value) return;
-      const ok = confirm("Delete this experiment permanently?");
-      if (!ok) return;
+  if (expDelete) {
+    expDelete.addEventListener("click", async () => {
+      msg(expMsg, "");
+      const sb = getSb();
+      if (!sb) return;
 
-      const id = Number(expId.value);
+      const id = $("exp-id").value.trim();
+      if (!id) return;
+
+      if (!confirm("Delete this experiment?")) return;
+
       const { error } = await sb.from("experiments").delete().eq("id", id);
-      if (error) {
-        if (expStatusText) expStatusText.textContent = `Error: ${error.message}`;
-        return;
-      }
-      closeExpForm();
+      if (error) return msg(expMsg, error.message || "Delete failed.", false);
+
+      msg(expMsg, "Deleted.", true);
       await loadExperiments();
+      setTimeout(closeExpModal, 300);
     });
   }
-});
+
+  // ---------- MESSAGES ----------
+  const msgList = $("msg-list");
+  const segBtns = Array.from(document.querySelectorAll(".admin-seg-btn"));
+  let currentMsgFilter = "open";
+
+  segBtns.forEach((b) => {
+    b.addEventListener("click", () => {
+      segBtns.forEach((x) => x.classList.toggle("active", x === b));
+      currentMsgFilter = b.dataset.filter;
+      loadMessages(currentMsgFilter);
+    });
+  });
+
+  async function loadMessages(filter) {
+    const sb = getSb();
+    if (!sb || !msgList) return;
+
+    msgList.innerHTML = `<div class="admin-item"><div class="meta">Loading…</div></div>`;
+
+    const q = sb
+      .from("contact_messages")
+      .select("*")
+      .eq("status", filter)
+      .order("created_at", { ascending: false });
+
+    const { data, error } = await q;
+    if (error) {
+      console.error(error);
+      msgList.innerHTML = `<div class="admin-item"><div class="meta">Failed to load messages.</div></div>`;
+      return;
+    }
+
+    const rows = data || [];
+    if (!rows.length) {
+      msgList.innerHTML = `<div class="admin-item"><div class="meta">No ${filter} messages.</div></div>`;
+      return;
+    }
+
+    msgList.innerHTML = "";
+    rows.forEach((m) => {
+      const item = document.createElement("div");
+      item.className = "admin-item";
+
+      const h = document.createElement("h4");
+      h.textContent = `${m.name || "—"} · ${m.email || "—"}`;
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = new Date(m.created_at).toLocaleString();
+
+      const p = document.createElement("p");
+      p.textContent = m.message || "";
+
+      const actions = document.createElement("div");
+      actions.className = "actions";
+
+      if (filter === "open") {
+        const close = document.createElement("button");
+        close.className = "btn btn-secondary";
+        close.type = "button";
+        close.textContent = "Mark closed";
+        close.addEventListener("click", async () => {
+          const { error } = await sb
+            .from("contact_messages")
+            .update({ status: "closed", closed_at: new Date().toISOString() })
+            .eq("id", m.id);
+
+          if (error) return console.error(error);
+          loadMessages("open");
+        });
+        actions.appendChild(close);
+      } else {
+        const reopen = document.createElement("button");
+        reopen.className = "btn btn-secondary";
+        reopen.type = "button";
+        reopen.textContent = "Reopen";
+        reopen.addEventListener("click", async () => {
+          const { error } = await sb
+            .from("contact_messages")
+            .update({ status: "open", closed_at: null })
+            .eq("id", m.id);
+
+          if (error) return console.error(error);
+          loadMessages("closed");
+        });
+        actions.appendChild(reopen);
+      }
+
+      item.appendChild(h);
+      item.appendChild(meta);
+      item.appendChild(p);
+      item.appendChild(actions);
+
+      msgList.appendChild(item);
+    });
+  }
+
+  // ---------- NEWSLETTER ----------
+  const newsList = $("news-list");
+
+  async function loadNewsletter() {
+    const sb = getSb();
+    if (!sb || !newsList) return;
+
+    newsList.innerHTML = `<div class="admin-item"><div class="meta">Loading…</div></div>`;
+
+    const { data, error } = await sb
+      .from("newsletter_subscribers")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error(error);
+      newsList.innerHTML = `<div class="admin-item"><div class="meta">Failed to load newsletter list.</div></div>`;
+      return;
+    }
+
+    const rows = data || [];
+    if (!rows.length) {
+      newsList.innerHTML = `<div class="admin-item"><div class="meta">No subscribers yet.</div></div>`;
+      return;
+    }
+
+    newsList.innerHTML = "";
+    rows.forEach((n) => {
+      const item = document.createElement("div");
+      item.className = "admin-item";
+
+      const h = document.createElement("h4");
+      h.textContent = n.email || "—";
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      meta.textContent = `${n.name || "—"} · ${new Date(n.created_at).toLocaleString()}`;
+
+      item.appendChild(h);
+      item.appendChild(meta);
+      newsList.appendChild(item);
+    });
+  }
+
+  // boot
+  bootIfSession();
+})();
