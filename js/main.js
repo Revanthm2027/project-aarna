@@ -1,232 +1,200 @@
-// js/main.js
+/* /js/main.js */
 (function () {
-  "use strict";
-
   // ---------- tiny toast ----------
-  function toast(msg, type = "info") {
-    let root = document.getElementById("toast-root");
-    if (!root) {
-      root = document.createElement("div");
-      root.id = "toast-root";
-      root.style.position = "fixed";
-      root.style.right = "16px";
-      root.style.bottom = "16px";
-      root.style.zIndex = "9999";
-      root.style.display = "flex";
-      root.style.flexDirection = "column";
-      root.style.gap = "10px";
-      document.body.appendChild(root);
+  function toast(msg) {
+    let wrap = document.getElementById("toasts");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "toasts";
+      wrap.style.position = "fixed";
+      wrap.style.right = "16px";
+      wrap.style.bottom = "16px";
+      wrap.style.zIndex = "9999";
+      wrap.style.display = "flex";
+      wrap.style.flexDirection = "column";
+      wrap.style.gap = "10px";
+      document.body.appendChild(wrap);
     }
-
-    const el = document.createElement("div");
-    el.textContent = msg;
-    el.style.padding = "12px 14px";
-    el.style.borderRadius = "12px";
-    el.style.maxWidth = "320px";
-    el.style.backdropFilter = "blur(10px)";
-    el.style.border = "1px solid rgba(255,255,255,0.15)";
-    el.style.background =
-      type === "error"
-        ? "rgba(120, 30, 30, 0.55)"
-        : type === "success"
-        ? "rgba(20, 90, 50, 0.55)"
-        : "rgba(20, 30, 60, 0.55)";
-    el.style.color = "rgba(255,255,255,0.92)";
-    el.style.boxShadow = "0 10px 35px rgba(0,0,0,0.35)";
-    el.style.fontSize = "14px";
-    el.style.lineHeight = "1.3";
-
-    root.appendChild(el);
-    setTimeout(() => {
-      el.style.opacity = "0";
-      el.style.transition = "opacity 250ms ease";
-      setTimeout(() => el.remove(), 280);
-    }, 2400);
+    const t = document.createElement("div");
+    t.style.padding = "12px 14px";
+    t.style.borderRadius = "12px";
+    t.style.border = "1px solid rgba(255,255,255,0.18)";
+    t.style.background = "rgba(10, 18, 40, 0.92)";
+    t.style.backdropFilter = "blur(10px)";
+    t.style.color = "white";
+    t.style.maxWidth = "420px";
+    t.style.boxShadow = "0 10px 24px rgba(0,0,0,0.25)";
+    t.style.fontSize = "14px";
+    t.textContent = msg;
+    wrap.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
   }
 
-  // ---------- theme toggle ----------
-  const themeBtn = document.getElementById("theme-toggle");
-  const themeIcon = themeBtn ? themeBtn.querySelector(".theme-icon") : null;
+  // ---------- theme ----------
+  function initTheme() {
+    const btn = document.getElementById("theme-toggle");
+    if (!btn) return;
 
-  function setTheme(t) {
-    document.documentElement.setAttribute("data-theme", t);
-    localStorage.setItem("aarna_theme", t);
-    if (themeIcon) themeIcon.textContent = t === "dark" ? "☾" : "☀";
-  }
+    const root = document.documentElement;
+    const saved = localStorage.getItem("aarna_theme");
+    if (saved === "light" || saved === "dark") root.setAttribute("data-theme", saved);
 
-  const savedTheme = localStorage.getItem("aarna_theme");
-  if (savedTheme) setTheme(savedTheme);
-
-  if (themeBtn) {
-    themeBtn.addEventListener("click", () => {
-      const cur = document.documentElement.getAttribute("data-theme") || "dark";
-      setTheme(cur === "dark" ? "light" : "dark");
+    btn.addEventListener("click", () => {
+      const cur = root.getAttribute("data-theme") || "dark";
+      const next = cur === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      localStorage.setItem("aarna_theme", next);
     });
   }
 
   // ---------- mobile nav ----------
-  const navToggle = document.querySelector(".nav-toggle");
-  const navLinks = document.querySelector(".nav-links");
-  if (navToggle && navLinks) {
-    navToggle.addEventListener("click", () => {
+  function initMobileNav() {
+    const toggle = document.querySelector(".nav-toggle");
+    const navLinks = document.querySelector(".nav-links");
+    if (!toggle || !navLinks) return;
+
+    toggle.addEventListener("click", () => {
       navLinks.classList.toggle("open");
-      navToggle.classList.toggle("open");
+      toggle.classList.toggle("open");
     });
 
     navLinks.querySelectorAll("a").forEach((a) => {
       a.addEventListener("click", () => {
         navLinks.classList.remove("open");
-        navToggle.classList.remove("open");
+        toggle.classList.remove("open");
       });
     });
   }
 
-  // ---------- VISITOR TRACK (unique IP forever; backend dedupes) ----------
-  (async function trackOnce() {
-    try {
-      // reduce spam calls from the same browser
-      const key = "aarna_track_sent_v1";
-      if (sessionStorage.getItem(key) === "1") return;
-      sessionStorage.setItem(key, "1");
+  // ---------- contact form (prevents multi-click duplicates) ----------
+  function initContactForm() {
+    const form = document.getElementById("contact-form");
+    if (!form) return;
 
-      await fetch(`/api/track?path=${encodeURIComponent(location.pathname)}`, {
-        method: "GET",
-        cache: "no-store",
-      });
-    } catch (_) {
-      // silent
-    }
-  })();
+    let inFlight = false;
 
-  // ---------- Supabase helper ----------
-  function getSb() {
-    return window.sb || null;
-  }
-
-  // ---------- CONTACT FORM ----------
-  const contactForm = document.getElementById("contact-form");
-  let submitting = false;
-
-  if (contactForm) {
-    contactForm.addEventListener("submit", async (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (submitting) return;
+      if (inFlight) return;
 
-      const sb = getSb();
-      if (!sb) {
-        toast("Backend not configured. Check Supabase keys.", "error");
-        return;
-      }
+      const sb = window.sb;
+      if (!sb) return toast("Backend not configured. Check Supabase keys.");
 
-      const fd = new FormData(contactForm);
-      const name = (fd.get("name") || "").toString().trim();
-      const email = (fd.get("email") || "").toString().trim().toLowerCase();
-      const message = (fd.get("message") || "").toString().trim();
-      const newsletter = !!document.getElementById("newsletter-optin")?.checked;
+      const fd = new FormData(form);
+      const name = String(fd.get("name") || "").trim();
+      const email = String(fd.get("email") || "").trim();
+      const message = String(fd.get("message") || "").trim();
+      const newsletterOptin = !!document.getElementById("newsletter-optin")?.checked;
 
-      if (!name || !email || !message) {
-        toast("Please fill all fields.", "error");
-        return;
-      }
+      if (!name || !email || !message) return toast("Please fill all fields.");
 
-      submitting = true;
-      const btn = contactForm.querySelector('button[type="submit"]');
-      if (btn) {
-        btn.disabled = true;
-        btn.style.opacity = "0.85";
-        btn.textContent = "Sending...";
+      const submitBtn = form.querySelector("button[type='submit']");
+      inFlight = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Submitting…";
       }
 
       try {
-        // 1) store message
-        const { error: msgErr } = await sb.from("contact_messages").insert([
+        // message row (allow multiple messages from same email)
+        const { error } = await sb.from("contact_messages").insert([
           {
             name,
             email,
             message,
+            newsletter_optin: newsletterOptin,
             status: "open",
-            newsletter_opt_in: newsletter,
-            source_path: location.pathname,
           },
         ]);
 
-        if (msgErr) throw msgErr;
+        if (error) throw error;
 
-        // 2) optionally store newsletter (upsert by email)
-        if (newsletter) {
-          const { error: nErr } = await sb
-            .from("newsletter_subscribers")
-            .upsert(
-              [{ email, name, source: "contact_form" }],
-              { onConflict: "email" }
-            );
-
-          if (nErr) {
-            // newsletter failure shouldn't block message success
-            console.warn("[AARNA] newsletter upsert failed:", nErr);
-          }
+        // newsletter row (dedup by primary key email if you use the SQL below)
+        if (newsletterOptin) {
+          await sb.from("newsletter_subscribers").upsert([{ email }], { onConflict: "email" });
         }
 
-        contactForm.reset();
-        toast("Your message has been received.", "success");
+        toast("Message received. We’ll get back to you.");
+        form.reset();
       } catch (err) {
-        console.error(err);
-        toast("Failed to send. Try again in a moment.", "error");
+        toast(err?.message || "Submit failed.");
       } finally {
-        submitting = false;
-        if (btn) {
-          btn.disabled = false;
-          btn.style.opacity = "1";
-          btn.textContent = "Submit";
+        inFlight = false;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Submit";
         }
       }
     });
   }
 
-  // ---------- EXPERIMENTS: render published rows if available ----------
-  (async function loadExperiments() {
-    const sb = getSb();
+  // ---------- experiments render from Supabase (published only) ----------
+  async function renderExperiments() {
     const grid = document.querySelector(".experiments-grid");
-    if (!sb || !grid) return;
+    if (!grid) return;
+    const sb = window.sb;
+    if (!sb) return;
 
-    // keep existing HTML as fallback
-    const fallback = grid.innerHTML;
+    const { data, error } = await sb
+      .from("experiments")
+      .select("*")
+      .eq("is_published", true)
+      .order("sort_order", { ascending: true, nullsFirst: true })
+      .order("created_at", { ascending: false });
+
+    if (error || !data) return;
+
+    // Replace grid with live data
+    if (!data.length) {
+      grid.innerHTML = `<p style="opacity:.75;">No experiments published yet.</p>`;
+      return;
+    }
+
+    grid.innerHTML = data
+      .map((x) => {
+        const status = x.status ? `<span class="experiment-status">${x.status}</span>` : "";
+        const link =
+          x.link_url
+            ? `<p style="margin-top:10px;"><a href="${x.link_url}" target="_blank" rel="noopener noreferrer">Read more</a></p>`
+            : "";
+
+        return `
+          <article class="experiment-card hover-float">
+            ${status}
+            <h3>${String(x.title || "")}</h3>
+            <p>${String(x.description || "")}</p>
+            ${link}
+          </article>
+        `;
+      })
+      .join("");
+  }
+
+  // ---------- unique IP tracking (lifetime unique) ----------
+  async function trackUniqueVisit() {
+    // avoid counting admin page
+    if (location.pathname.startsWith("/admin")) return;
+
+    // reduce calls per browser (server still dedups by IP)
+    const key = "aarna_track_sent_v1";
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, "1");
 
     try {
-      const { data, error } = await sb
-        .from("experiments")
-        .select("*")
-        .eq("is_published", true)
-        .order("sort_order", { ascending: true })
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      if (!data || data.length === 0) return;
-
-      grid.innerHTML = "";
-      data.forEach((x) => {
-        const card = document.createElement("article");
-        card.className = "experiment-card hover-float";
-
-        const status = document.createElement("span");
-        status.className = "experiment-status";
-        status.textContent = x.status_label || "Live";
-
-        const h = document.createElement("h3");
-        h.textContent = x.title || "Experiment";
-
-        const p = document.createElement("p");
-        p.textContent = x.description || "";
-
-        card.appendChild(status);
-        card.appendChild(h);
-        card.appendChild(p);
-
-        grid.appendChild(card);
+      await fetch(`/api/track?path=${encodeURIComponent(location.pathname)}&t=${Date.now()}`, {
+        method: "GET",
+        cache: "no-store",
       });
-    } catch (e) {
-      console.warn("[AARNA] experiments load failed:", e);
-      grid.innerHTML = fallback;
+    } catch (_) {
+      // ignore
     }
-  })();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    initTheme();
+    initMobileNav();
+    initContactForm();
+    renderExperiments();
+    trackUniqueVisit();
+  });
 })();
