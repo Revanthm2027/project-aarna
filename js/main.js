@@ -1,6 +1,5 @@
 /* /js/main.js */
 (function () {
-  // ---------- tiny toast ----------
   function toast(msg) {
     let wrap = document.getElementById("toasts");
     if (!wrap) {
@@ -30,7 +29,6 @@
     setTimeout(() => t.remove(), 3000);
   }
 
-  // ---------- theme ----------
   function initTheme() {
     const btn = document.getElementById("theme-toggle");
     if (!btn) return;
@@ -47,7 +45,6 @@
     });
   }
 
-  // ---------- mobile nav ----------
   function initMobileNav() {
     const toggle = document.querySelector(".nav-toggle");
     const navLinks = document.querySelector(".nav-links");
@@ -66,7 +63,6 @@
     });
   }
 
-  // ---------- contact form (prevents multi-click duplicates) ----------
   function initContactForm() {
     const form = document.getElementById("contact-form");
     if (!form) return;
@@ -96,22 +92,16 @@
       }
 
       try {
-        // message row (allow multiple messages from same email)
         const { error } = await sb.from("contact_messages").insert([
-          {
-            name,
-            email,
-            message,
-            newsletter_optin: newsletterOptin,
-            status: "open",
-          },
+          { name, email, message, newsletter_optin: newsletterOptin, status: "open" },
         ]);
-
         if (error) throw error;
 
-        // newsletter row (dedup by primary key email if you use the SQL below)
         if (newsletterOptin) {
-          await sb.from("newsletter_subscribers").upsert([{ email }], { onConflict: "email" });
+          // if table doesn't exist, admin will fall back to contact_messages
+          try {
+            await sb.from("newsletter_subscribers").upsert([{ email }], { onConflict: "email" });
+          } catch {}
         }
 
         toast("Message received. We’ll get back to you.");
@@ -128,10 +118,65 @@
     });
   }
 
-  // ---------- experiments render from Supabase (published only) ----------
+  function getPublicImageUrl(sb, bucket, path) {
+    if (!path) return null;
+    try {
+      const { data } = sb.storage.from(bucket).getPublicUrl(path);
+      return data?.publicUrl || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function carouselHtml(urls, alt) {
+    if (!urls.length) return "";
+    const dots = urls.map((_, i) => `<button class="exp-dot ${i===0?"active":""}" type="button" aria-label="Go to image ${i+1}"></button>`).join("");
+
+    return `
+      <div class="exp-carousel" data-carousel="live">
+        <div class="exp-track">
+          ${urls.map((u) => `
+            <div class="exp-slide">
+              <img src="${u}" alt="${alt}" loading="lazy" decoding="async">
+            </div>
+          `).join("")}
+        </div>
+        <div class="exp-dots">${dots}</div>
+      </div>
+    `;
+  }
+
+  function initCarousel(el) {
+    const track = el.querySelector(".exp-track");
+    const dots = Array.from(el.querySelectorAll(".exp-dot"));
+    if (!track || dots.length <= 1) return;
+
+    const update = () => {
+      const w = track.clientWidth || 1;
+      const idx = Math.round(track.scrollLeft / w);
+      dots.forEach((d, i) => d.classList.toggle("active", i === idx));
+    };
+
+    track.addEventListener("scroll", () => requestAnimationFrame(update), { passive: true });
+
+    dots.forEach((d, i) => {
+      d.addEventListener("click", () => {
+        const w = track.clientWidth || 1;
+        track.scrollTo({ left: i * w, behavior: "smooth" });
+      });
+    });
+
+    update();
+  }
+
+  function initAllCarousels() {
+    document.querySelectorAll(".exp-carousel[data-carousel='live']").forEach(initCarousel);
+  }
+
   async function renderExperiments() {
     const grid = document.querySelector(".experiments-grid");
     if (!grid) return;
+
     const sb = window.sb;
     if (!sb) return;
 
@@ -139,55 +184,52 @@
       .from("experiments")
       .select("*")
       .eq("is_published", true)
-      .order("sort_order", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: false });
 
     if (error || !data) return;
 
-    // Replace grid with live data
     if (!data.length) {
       grid.innerHTML = `<p style="opacity:.75;">No experiments published yet.</p>`;
       return;
     }
 
-    grid.innerHTML = data
-      .map((x) => {
-        const status = x.status ? `<span class="experiment-status">${x.status}</span>` : "";
-        const link =
-          x.link_url
-            ? `<p style="margin-top:10px;"><a href="${x.link_url}" target="_blank" rel="noopener noreferrer">Read more</a></p>`
-            : "";
+    grid.innerHTML = data.map((x) => {
+      const status = x.status ? `<span class="experiment-status">${x.status}</span>` : "";
 
-        return `
-          <article class="experiment-card hover-float">
-            ${status}
-            <h3>${String(x.title || "")}</h3>
-            <p>${String(x.description || "")}</p>
-            ${link}
-          </article>
-        `;
-      })
-      .join("");
+      const paths = Array.isArray(x.image_paths) && x.image_paths.length
+        ? x.image_paths.slice(0, 4)
+        : (x.image_path ? [x.image_path] : []);
+
+      const urls = paths
+        .map((p) => getPublicImageUrl(sb, "experiments", p))
+        .filter(Boolean);
+
+      const alt = (x.image_alt || x.title || "Experiment image").replace(/"/g, "&quot;");
+
+      return `
+        <article class="experiment-card hover-float">
+          ${status}
+          ${carouselHtml(urls, alt)}
+          <h3>${x.title || ""}</h3>
+          <p>${x.description || ""}</p>
+        </article>
+      `;
+    }).join("");
+
+    initAllCarousels();
   }
 
-  // ---------- unique IP tracking (lifetime unique) ----------
   async function trackUniqueVisit() {
-    // avoid counting admin page
     if (location.pathname.startsWith("/admin")) return;
-
-    // reduce calls per browser (server still dedups by IP)
     const key = "aarna_track_sent_v1";
     if (localStorage.getItem(key)) return;
     localStorage.setItem(key, "1");
-
     try {
       await fetch(`/api/track?path=${encodeURIComponent(location.pathname)}&t=${Date.now()}`, {
         method: "GET",
         cache: "no-store",
       });
-    } catch (_) {
-      // ignore
-    }
+    } catch {}
   }
 
   document.addEventListener("DOMContentLoaded", () => {
