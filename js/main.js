@@ -98,7 +98,6 @@
         if (error) throw error;
 
         if (newsletterOptin) {
-          // if table doesn't exist, admin will fall back to contact_messages
           try {
             await sb.from("newsletter_subscribers").upsert([{ email }], { onConflict: "email" });
           } catch {}
@@ -128,18 +127,57 @@
     }
   }
 
+  // Handles: array | "{a,b}" | "a,b" | null
+  function normalizeImagePaths(row) {
+    const max = 4;
+
+    if (Array.isArray(row.image_paths)) {
+      return row.image_paths.filter(Boolean).slice(0, max);
+    }
+
+    if (typeof row.image_paths === "string" && row.image_paths.trim()) {
+      const s = row.image_paths.trim();
+      // Postgres array string: {a,b,c}
+      if (s.startsWith("{") && s.endsWith("}")) {
+        const inner = s.slice(1, -1).trim();
+        if (!inner) return [];
+        return inner
+          .split(",")
+          .map((x) => x.trim().replace(/^"+|"+$/g, ""))
+          .filter(Boolean)
+          .slice(0, max);
+      }
+      // comma list fallback
+      return s.split(",").map((x) => x.trim()).filter(Boolean).slice(0, max);
+    }
+
+    if (row.image_path) return [row.image_path];
+    return [];
+  }
+
   function carouselHtml(urls, alt) {
     if (!urls.length) return "";
-    const dots = urls.map((_, i) => `<button class="exp-dot ${i===0?"active":""}" type="button" aria-label="Go to image ${i+1}"></button>`).join("");
+    const dots = urls
+      .map(
+        (_, i) =>
+          `<button class="exp-dot ${i === 0 ? "active" : ""}" type="button" aria-label="Go to image ${
+            i + 1
+          }"></button>`
+      )
+      .join("");
 
     return `
       <div class="exp-carousel" data-carousel="live">
         <div class="exp-track">
-          ${urls.map((u) => `
+          ${urls
+            .map(
+              (u) => `
             <div class="exp-slide">
               <img src="${u}" alt="${alt}" loading="lazy" decoding="async">
             </div>
-          `).join("")}
+          `
+            )
+            .join("")}
         </div>
         <div class="exp-dots">${dots}</div>
       </div>
@@ -157,7 +195,11 @@
       dots.forEach((d, i) => d.classList.toggle("active", i === idx));
     };
 
-    track.addEventListener("scroll", () => requestAnimationFrame(update), { passive: true });
+    track.addEventListener(
+      "scroll",
+      () => requestAnimationFrame(update),
+      { passive: true }
+    );
 
     dots.forEach((d, i) => {
       d.addEventListener("click", () => {
@@ -165,6 +207,9 @@
         track.scrollTo({ left: i * w, behavior: "smooth" });
       });
     });
+
+    // keep dot correct after resize/orientation change
+    window.addEventListener("resize", () => requestAnimationFrame(update), { passive: true });
 
     update();
   }
@@ -182,39 +227,40 @@
 
     const { data, error } = await sb
       .from("experiments")
-      .select("*")
+      .select("id,title,description,status,is_published,image_paths,image_path,image_alt,created_at")
       .eq("is_published", true)
       .order("created_at", { ascending: false });
 
-    if (error || !data) return;
-
-    if (!data.length) {
+    if (error) {
+      console.error("[AARNA] experiments load error:", error.message);
+      return;
+    }
+    if (!data || !data.length) {
       grid.innerHTML = `<p style="opacity:.75;">No experiments published yet.</p>`;
       return;
     }
 
-    grid.innerHTML = data.map((x) => {
-      const status = x.status ? `<span class="experiment-status">${x.status}</span>` : "";
+    grid.innerHTML = data
+      .map((x) => {
+        const status = x.status ? `<span class="experiment-status">${x.status}</span>` : "";
 
-      const paths = Array.isArray(x.image_paths) && x.image_paths.length
-        ? x.image_paths.slice(0, 4)
-        : (x.image_path ? [x.image_path] : []);
+        const paths = normalizeImagePaths(x);
+        const urls = paths
+          .map((p) => getPublicImageUrl(sb, "experiments", p))
+          .filter(Boolean);
 
-      const urls = paths
-        .map((p) => getPublicImageUrl(sb, "experiments", p))
-        .filter(Boolean);
+        const alt = (x.image_alt || x.title || "Experiment image").replace(/"/g, "&quot;");
 
-      const alt = (x.image_alt || x.title || "Experiment image").replace(/"/g, "&quot;");
-
-      return `
-        <article class="experiment-card hover-float">
-          ${status}
-          ${carouselHtml(urls, alt)}
-          <h3>${x.title || ""}</h3>
-          <p>${x.description || ""}</p>
-        </article>
-      `;
-    }).join("");
+        return `
+          <article class="experiment-card hover-float">
+            ${status}
+            ${carouselHtml(urls, alt)}
+            <h3>${x.title || ""}</h3>
+            <p>${x.description || ""}</p>
+          </article>
+        `;
+      })
+      .join("");
 
     initAllCarousels();
   }
