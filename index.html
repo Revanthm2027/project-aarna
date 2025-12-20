@@ -10,13 +10,13 @@
   />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
+
 <body>
   <div class="global-bg-waves"></div>
   <div class="water-ripples"></div>
 
   <header class="navbar">
     <div class="nav-inner">
-      <!-- Left logo slot (empty for now) -->
       <a href="#home" class="brand">
         <span class="logo-slot"></span>
         <span class="brand-text">
@@ -35,17 +35,10 @@
           <a href="#contact" class="nav-link">Contact</a>
         </nav>
 
-        <!-- Light/Dark mode toggle -->
-        <button
-          class="theme-toggle"
-          id="theme-toggle"
-          type="button"
-          aria-label="Toggle light and dark mode"
-        >
+        <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle light and dark mode">
           <span class="theme-icon">☾</span>
         </button>
 
-        <!-- Mobile menu toggle -->
         <button class="nav-toggle" aria-label="Toggle navigation">
           <span></span><span></span>
         </button>
@@ -56,28 +49,19 @@
   <main>
     <!-- HERO / HOME -->
     <section id="home" class="section hero-section">
-      <!-- IMPORTANT: added hero-grid class -->
-      <div class="hero-inner hero-grid">
-        <!-- IMPORTANT: added heroCopy id -->
-        <div class="hero-copy" id="heroCopy">
+      <div class="hero-inner">
+        <div class="hero-copy">
           <p class="hero-kicker">Science · Coasts · Carbon</p>
 
           <h1 class="hero-title">
-            <span class="hero-line hero-line--blue">
-              India&apos;s First Blue Carbon
-            </span>
-            <span class="hero-line hero-line--white">
-              Decentralized MRV System
-            </span>
-            <span class="hero-line hero-line--blue hero-line-small">
-              For India&apos;s Coastline.
-            </span>
+            <span class="hero-line hero-line--blue">India&apos;s First Blue Carbon</span>
+            <span class="hero-line hero-line--white">Decentralized MRV System</span>
+            <span class="hero-line hero-line--blue hero-line-small">For India&apos;s Coastline.</span>
           </h1>
 
           <p class="hero-lead">
-            Project AARNA tracks how mangroves and tidal wetlands grow, store
-            carbon and protect coasts — with evidence that can be checked, not
-            just claims.
+            Project AARNA tracks how mangroves and tidal wetlands grow, store carbon and protect coasts —
+            with evidence that can be checked, not just claims.
           </p>
 
           <div class="hero-actions">
@@ -86,8 +70,7 @@
           </div>
         </div>
 
-        <!-- IMPORTANT: added heroWorkflow id to force it below heading on mobile -->
-        <div class="hero-visual" id="heroWorkflow">
+        <div class="hero-visual">
           <div class="wave-orbit orbit-1"></div>
           <div class="wave-orbit orbit-2"></div>
           <div class="wave-orbit orbit-3"></div>
@@ -105,7 +88,6 @@
           <div class="droplet droplet-2"></div>
           <div class="droplet droplet-3"></div>
 
-          <!-- Clean, structured workflow panel -->
           <div class="hero-panel hover-float">
             <div class="hero-panel-header">
               <span class="pill-label">Project AARNA workflow</span>
@@ -120,45 +102,35 @@
                 <div class="workflow-step-badge">1</div>
                 <div class="workflow-text">
                   <p class="workflow-title">Collect</p>
-                  <p class="workflow-sub">
-                    Plots, photos, imagery, sensors and lab results from blue carbon sites.
-                  </p>
+                  <p class="workflow-sub">Plots, photos, imagery, sensors and lab results from blue carbon sites.</p>
                 </div>
               </li>
               <li class="workflow-item">
                 <div class="workflow-step-badge">2</div>
                 <div class="workflow-text">
                   <p class="workflow-title">Check</p>
-                  <p class="workflow-sub">
-                    Automated QA/QC tests catch gaps, outliers and strange trends.
-                  </p>
+                  <p class="workflow-sub">Automated QA/QC tests catch gaps, outliers and strange trends.</p>
                 </div>
               </li>
               <li class="workflow-item">
                 <div class="workflow-step-badge">3</div>
                 <div class="workflow-text">
                   <p class="workflow-title">Model</p>
-                  <p class="workflow-sub">
-                    Standard equations and models turn measurements into carbon numbers.
-                  </p>
+                  <p class="workflow-sub">Standard equations and models turn measurements into carbon numbers.</p>
                 </div>
               </li>
               <li class="workflow-item">
                 <div class="workflow-step-badge">4</div>
                 <div class="workflow-text">
                   <p class="workflow-title">Verify</p>
-                  <p class="workflow-sub">
-                    Experts review evidence, rerun calculations and sign decisions.
-                  </p>
+                  <p class="workflow-sub">Experts review evidence, rerun calculations and sign decisions.</p>
                 </div>
               </li>
               <li class="workflow-item">
                 <div class="workflow-step-badge">5</div>
                 <div class="workflow-text">
                   <p class="workflow-title">Issue</p>
-                  <p class="workflow-sub">
-                    Credits are created, tracked and retired with a full audit trail.
-                  </p>
+                  <p class="workflow-sub">Credits are created, tracked and retired with a full audit trail.</p>
                 </div>
               </li>
             </ol>
@@ -169,24 +141,15 @@
       <div class="bluecarbon-intro">
         <div class="intro-card hover-float">
           <h3>Blue Carbon, in short</h3>
-          <p>
-            Mangroves, seagrasses and tidal wetlands lock carbon in wood and
-            deep, waterlogged soils — often more than forests on land.
-          </p>
+          <p>Mangroves, seagrasses and tidal wetlands lock carbon in wood and deep, waterlogged soils.</p>
         </div>
         <div class="intro-card hover-float">
           <h3>The trust problem</h3>
-          <p>
-            If data is scattered or unclear, nobody can be sure how much
-            carbon a project really stores, or for how long.
-          </p>
+          <p>If data is scattered or unclear, nobody can be sure how much carbon a project really stores.</p>
         </div>
         <div class="intro-card hover-float">
           <h3>Where AARNA fits</h3>
-          <p>
-            AARNA gives blue carbon projects a single, digital backbone for
-            monitoring, reporting and verification.
-          </p>
+          <p>AARNA gives blue carbon projects a single digital backbone for monitoring, reporting and verification.</p>
         </div>
       </div>
     </section>
@@ -195,45 +158,32 @@
     <section id="about" class="section">
       <div class="section-header">
         <h2>About Project AARNA</h2>
-        <p>
-          AARNA is building the digital MRV layer for blue carbon projects
-          along India&apos;s coasts.
-        </p>
+        <p>AARNA is building the digital MRV layer for blue carbon projects along India&apos;s coasts.</p>
       </div>
 
       <div class="about-grid">
         <div class="about-main">
           <p>
-            Today, many coastal projects run on static reports and manual
-            tracking. It is hard to repeat calculations, share evidence or
-            explain how a credit was created.
+            Today, many coastal projects run on static reports and manual tracking.
+            It is hard to repeat calculations, share evidence or explain how a credit was created.
           </p>
           <p>
-            AARNA replaces this with a clear, digital workflow — from field
-            data capture to independent verification and credit issuance.
+            AARNA replaces this with a clear digital workflow — from field data capture to independent verification
+            and credit issuance.
           </p>
 
           <div class="about-columns">
             <div class="pill-card hover-float">
               <span class="pill-label">What is dMRV?</span>
-              <p>
-                Digital Monitoring, Reporting and Verification keeps project
-                data live, structured and ready to re-run.
-              </p>
+              <p>Digital Monitoring, Reporting and Verification keeps project data live, structured and re-runnable.</p>
             </div>
             <div class="pill-card hover-float">
               <span class="pill-label">Why it matters</span>
-              <p>
-                Regulators, buyers and communities want numbers they can
-                check, not one-time PDFs.
-              </p>
+              <p>Regulators, buyers and communities want numbers they can check, not one-time PDFs.</p>
             </div>
             <div class="pill-card hover-float">
               <span class="pill-label">AARNA&apos;s role</span>
-              <p>
-                Connect field teams, scientists and verifiers in one system,
-                with a transparent history over time.
-              </p>
+              <p>Connect field teams, scientists and verifiers in one system with transparent history over time.</p>
             </div>
           </div>
         </div>
@@ -242,7 +192,7 @@
           <h3>Built for real coastlines</h3>
           <ul>
             <li>Simple tools for community and NGO field teams.</li>
-            <li>Verifier views that combine plots, imagery and sensors.</li>
+            <li>Verifier views combining plots, imagery and sensors.</li>
             <li>Registries that show impact, not just tonnes of CO₂e.</li>
             <li>Ready for future on-chain governance and open data.</li>
           </ul>
@@ -254,118 +204,52 @@
     <section id="dmrv" class="section">
       <div class="section-header">
         <h2>The dMRV Engine</h2>
-        <p>
-          How AARNA turns raw observations into blue carbon numbers that can
-          be explained in plain language.
-        </p>
+        <p>How AARNA turns raw observations into blue carbon numbers that can be explained in plain language.</p>
       </div>
 
       <div class="dmrv-layout">
-        <!-- Phase 1 -->
         <section class="dmrv-phase hover-float">
           <header class="dmrv-phase-header">
             <span class="phase-index">1</span>
             <div>
               <h3>Data collection</h3>
-              <p class="phase-caption">
-                What is happening in the water and on the ground?
-              </p>
+              <p class="phase-caption">What is happening in the water and on the ground?</p>
             </div>
           </header>
           <ul class="phase-list">
-            <li class="phase-item">
-              <h4>Field sampling</h4>
-              <p>
-                Plots, tree sizes, soil cores and site notes, tagged with GPS
-                and time.
-              </p>
-            </li>
-            <li class="phase-item">
-              <h4>Remote sensing</h4>
-              <p>
-                Satellite and drone scenes track canopy cover and wetland
-                extent.
-              </p>
-            </li>
-            <li class="phase-item">
-              <h4>In-situ sensors</h4>
-              <p>
-                Water-level, salinity, turbidity and oxygen show ecosystem
-                health.
-              </p>
-            </li>
+            <li class="phase-item"><h4>Field sampling</h4><p>Plots, tree sizes, soil cores and site notes with GPS + time.</p></li>
+            <li class="phase-item"><h4>Remote sensing</h4><p>Satellite/drone scenes track canopy cover and wetland extent.</p></li>
+            <li class="phase-item"><h4>In-situ sensors</h4><p>Water-level, salinity, turbidity and oxygen show ecosystem health.</p></li>
           </ul>
         </section>
 
-        <!-- Phase 2 -->
         <section class="dmrv-phase hover-float">
           <header class="dmrv-phase-header">
             <span class="phase-index">2</span>
             <div>
               <h3>Checks & intelligence</h3>
-              <p class="phase-caption">
-                Is the data complete and reasonable?
-              </p>
+              <p class="phase-caption">Is the data complete and reasonable?</p>
             </div>
           </header>
           <ul class="phase-list">
-            <li class="phase-item">
-              <h4>Data integrity</h4>
-              <p>
-                Evidence is hashed, anchored on-chain and stored in
-                tamper-evident archives.
-              </p>
-            </li>
-            <li class="phase-item">
-              <h4>Machine learning assists</h4>
-              <p>
-                Models estimate biomass, classify land cover and flag
-                outliers for human review.
-              </p>
-            </li>
-            <li class="phase-item">
-              <h4>Verifier workspace</h4>
-              <p>
-                Verifiers compare sources, rerun calculations and log
-                comments in one place.
-              </p>
-            </li>
+            <li class="phase-item"><h4>Data integrity</h4><p>Evidence is hashed and stored in tamper-evident archives.</p></li>
+            <li class="phase-item"><h4>Machine learning assists</h4><p>Models estimate biomass and flag outliers for review.</p></li>
+            <li class="phase-item"><h4>Verifier workspace</h4><p>Verifiers compare sources and rerun calculations in one place.</p></li>
           </ul>
         </section>
 
-        <!-- Phase 3 -->
         <section class="dmrv-phase hover-float">
           <header class="dmrv-phase-header">
             <span class="phase-index">3</span>
             <div>
               <h3>Carbon accounting & registry</h3>
-              <p class="phase-caption">
-                How many tonnes, and who can rely on them?
-              </p>
+              <p class="phase-caption">How many tonnes, and who can rely on them?</p>
             </div>
           </header>
           <ul class="phase-list">
-            <li class="phase-item">
-              <h4>Carbon stock estimation</h4>
-              <p>
-                Standard equations convert field and lab values into carbon
-                stocks and removals.
-              </p>
-            </li>
-            <li class="phase-item">
-              <h4>Issuance & tokens</h4>
-              <p>
-                Verified tonnes are issued as digital credits, each tied to
-                a specific project and period.
-              </p>
-            </li>
-            <li class="phase-item">
-              <h4>Reporting & retirement</h4>
-              <p>
-                Transfers and retirements are tracked so anyone can see what
-                was sold or retired, and why.
-              </p>
-            </li>
+            <li class="phase-item"><h4>Carbon stock estimation</h4><p>Standard equations convert field/lab values into carbon stocks.</p></li>
+            <li class="phase-item"><h4>Issuance</h4><p>Verified tonnes are issued as digital credits tied to project + period.</p></li>
+            <li class="phase-item"><h4>Reporting & retirement</h4><p>Transfers and retirements stay visible with a clear audit trail.</p></li>
           </ul>
         </section>
       </div>
@@ -375,50 +259,14 @@
     <section id="methodologies" class="section">
       <div class="section-header">
         <h2>Methodologies & Frameworks</h2>
-        <p>
-          AARNA sits on top of existing science and carbon standards — it
-          does not replace them.
-        </p>
+        <p>AARNA sits on top of existing science and carbon standards — it does not replace them.</p>
       </div>
 
       <div class="methodology-grid">
-        <div class="method-card hover-float">
-          <h3>IPCC guidance</h3>
-          <p>
-            We follow the IPCC 2006 AFOLU Guidelines and the 2013 Wetlands
-            Supplement for mangroves and tidal wetlands.
-          </p>
-        </div>
-        <div class="method-card hover-float">
-          <h3>Baselines & monitoring</h3>
-          <p>
-            Each project defines a baseline and tracks change in carbon
-            stocks against that line.
-          </p>
-        </div>
-        <div class="method-card hover-float">
-          <h3>Voluntary standards</h3>
-          <p>
-            The platform is shaped to work with emerging blue carbon
-            methods under programs such as VCS.
-          </p>
-        </div>
-        <div class="method-card hover-float">
-          <h3>Evidence-first design</h3>
-          <p>
-            Every key number links back to raw data, lab sheets, imagery or
-            sensor logs with a clear chain-of-custody.
-          </p>
-        </div>
-      </div>
-
-      <div class="methodology-note hover-float">
-        <span class="pill-label">For newcomers too</span>
-        <p>
-          The live platform will include short explainers and glossaries so
-          students, communities and new buyers can follow the logic without
-          a PhD.
-        </p>
+        <div class="method-card hover-float"><h3>IPCC guidance</h3><p>Aligned with IPCC 2006 AFOLU and 2013 Wetlands Supplement.</p></div>
+        <div class="method-card hover-float"><h3>Baselines</h3><p>Projects define baseline and track change in carbon stocks over time.</p></div>
+        <div class="method-card hover-float"><h3>Voluntary standards</h3><p>Designed to support emerging blue carbon methods under programs like VCS.</p></div>
+        <div class="method-card hover-float"><h3>Evidence-first</h3><p>Every key number links back to raw data, imagery or sensor logs.</p></div>
       </div>
     </section>
 
@@ -426,45 +274,15 @@
     <section id="experiments" class="section">
       <div class="section-header">
         <h2>Experiments & Pilot Studies</h2>
-        <p>
-          A preview of how AARNA will be tested in the field with partners
-          along India&apos;s coasts.
-        </p>
+        <p>Live cards are loaded from the admin console (published experiments only).</p>
       </div>
 
-      <div class="experiments-grid" id="experiments-grid">
-        <article class="experiment-card hover-float">
-          <span class="experiment-status">Upcoming</span>
-          <h3>Pilot · XYZ mangrove reserve</h3>
-          <p>
-            Full dMRV run: permanent plots, soil cores, drone imagery and
-            community-led data capture, reviewed by an external lab or
-            institute.
-          </p>
-        </article>
-
-        <article class="experiment-card hover-float">
-          <span class="experiment-status">Planned</span>
-          <h3>Sensor lagoon testbed</h3>
-          <p>
-            Low-cost sensors stream salinity, turbidity and oxygen into
-            AARNA, checking how health signals support carbon results.
-          </p>
-        </article>
-
-        <article class="experiment-card hover-float">
-          <span class="experiment-status">Design stage</span>
-          <h3>Community data co-lab</h3>
-          <p>
-            Co-design mobile workflows with local teams so that digital MRV
-            matches how restoration actually happens.
-          </p>
-        </article>
+      <div class="experiments-grid">
+        <!-- Filled by main.js from Supabase -->
       </div>
 
       <p class="experiments-note">
-        Over time, each card can link to protocols, field notes, datasets
-        and dashboards — turning AARNA into a live blue carbon MRV lab.
+        Add/edit experiments from <strong>/admin</strong>. Publish to show on the live site.
       </p>
     </section>
 
@@ -472,10 +290,7 @@
     <section id="contact" class="section">
       <div class="section-header">
         <h2>Contact Project AARNA</h2>
-        <p>
-          If you work with coasts, data or climate finance, we are open to
-          pilots and joint research.
-        </p>
+        <p>If you work with coasts, data or climate finance, we are open to pilots and joint research.</p>
       </div>
 
       <div class="contact-grid">
@@ -510,12 +325,7 @@
             </label>
             <label>
               Message
-              <textarea
-                name="message"
-                rows="4"
-                placeholder="Tell us about your work, questions, or ideas."
-                required
-              ></textarea>
+              <textarea name="message" rows="4" placeholder="Tell us about your work, questions, or ideas." required></textarea>
             </label>
 
             <label style="display:flex; gap:10px; align-items:center; font-size:0.9rem; color: var(--text-muted); text-transform:none; letter-spacing:0;">
@@ -534,9 +344,7 @@
     <div class="footer-inner">
       <div class="footer-left">
         <span class="brand-icon footer-icon">A</span>
-        <span class="footer-text">
-          Project AARNA — Blue Carbon dMRV Infrastructure
-        </span>
+        <span class="footer-text">Project AARNA — Blue Carbon dMRV Infrastructure</span>
       </div>
       <div class="footer-links">
         <a href="#home">Home</a>
@@ -549,10 +357,9 @@
     </div>
   </footer>
 
-<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script defer src="js/supabaseClient.js?v=7"></script>
-<script src="/js/main.js?v=multi4"></script>
-
-
+  <!-- IMPORTANT: correct script order -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script defer src="/js/supabaseClient.js"></script>
+  <script defer src="/js/main.js?v=multi4fix"></script>
 </body>
 </html>
