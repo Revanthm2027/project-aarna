@@ -1,184 +1,220 @@
-/* /js/main.js */
+// /js/main.js
 (function () {
-  function initTheme() {
-    const btn = document.getElementById("theme-toggle");
-    if (!btn) return;
+  function $(sel, root = document) { return root.querySelector(sel); }
+  function $all(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
 
-    const root = document.documentElement;
-    const saved = localStorage.getItem("aarna_theme");
-    if (saved === "light" || saved === "dark") root.setAttribute("data-theme", saved);
+  function showToast(message, type = "info") {
+    const toast = document.createElement("div");
+    toast.className = `toast ${type === "success" ? "toast-success" : ""} ${type === "error" ? "toast-error" : ""}`;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("show"));
+    setTimeout(() => toast.classList.remove("show"), 2600);
+    setTimeout(() => toast.remove(), 3200);
+  }
+
+  function waitForSb(timeoutMs = 9000) {
+    return new Promise((resolve, reject) => {
+      if (window.sb) return resolve(window.sb);
+      const t0 = Date.now();
+      const onReady = () => { cleanup(); resolve(window.sb); };
+      const timer = setInterval(() => {
+        if (window.sb) onReady();
+        if (Date.now() - t0 > timeoutMs) { cleanup(); reject(new Error("window.sb missing")); }
+      }, 60);
+      function cleanup() {
+        clearInterval(timer);
+        window.removeEventListener("aarna:supabase-ready", onReady);
+      }
+      window.addEventListener("aarna:supabase-ready", onReady, { once: true });
+    });
+  }
+
+  // Theme toggle (works with your current CSS variables)
+  function initTheme() {
+    const btn = $("#theme-toggle");
+    if (!btn) return;
+    const html = document.documentElement;
+    const saved = localStorage.getItem("aarna-theme");
+    if (saved) html.setAttribute("data-theme", saved);
 
     btn.addEventListener("click", () => {
-      const cur = root.getAttribute("data-theme") || "dark";
+      const cur = html.getAttribute("data-theme") || "dark";
       const next = cur === "dark" ? "light" : "dark";
-      root.setAttribute("data-theme", next);
-      localStorage.setItem("aarna_theme", next);
+      html.setAttribute("data-theme", next);
+      localStorage.setItem("aarna-theme", next);
     });
   }
 
+  // Mobile nav toggle (your CSS supports .nav-links.open)
   function initMobileNav() {
-    const toggle = document.querySelector(".nav-toggle");
-    const navLinks = document.querySelector(".nav-links");
-    if (!toggle || !navLinks) return;
-
-    toggle.addEventListener("click", () => {
-      navLinks.classList.toggle("open");
-      toggle.classList.toggle("open");
-    });
-
-    navLinks.querySelectorAll("a").forEach((a) => {
-      a.addEventListener("click", () => {
-        navLinks.classList.remove("open");
-        toggle.classList.remove("open");
-      });
-    });
+    const btn = $(".nav-toggle");
+    const links = $(".nav-links");
+    if (!btn || !links) return;
+    btn.addEventListener("click", () => links.classList.toggle("open"));
+    $all(".nav-link").forEach((a) => a.addEventListener("click", () => links.classList.remove("open")));
   }
 
-  function normalizeImagePaths(row) {
-    const max = 4;
-
-    if (Array.isArray(row.image_paths)) return row.image_paths.filter(Boolean).slice(0, max);
-
-    if (typeof row.image_paths === "string" && row.image_paths.trim()) {
-      const s = row.image_paths.trim();
-      if (s.startsWith("{") && s.endsWith("}")) {
-        const inner = s.slice(1, -1).trim();
-        if (!inner) return [];
-        return inner
-          .split(",")
-          .map((x) => x.trim().replace(/^"+|"+$/g, ""))
-          .filter(Boolean)
-          .slice(0, max);
-      }
-      return s.split(",").map((x) => x.trim()).filter(Boolean).slice(0, max);
-    }
-
-    if (row.image_path) return [row.image_path];
-    return [];
-  }
-
-  function getPublicImageUrl(sb, bucket, path) {
-    if (!path) return null;
+  // Unique visitor tracking (server stores unique IP hash once)
+  async function trackVisitor() {
     try {
-      const { data } = sb.storage.from(bucket).getPublicUrl(path);
-      return data?.publicUrl || null;
-    } catch {
-      return null;
-    }
+      if (sessionStorage.getItem("aarna_tracked")) return;
+      sessionStorage.setItem("aarna_tracked", "1");
+      await fetch(`/api/track?path=${encodeURIComponent(location.pathname || "/")}`, { cache: "no-store" });
+    } catch {}
   }
 
-  function carouselHtml(urls, alt) {
-    if (!urls.length) return "";
-    const dots = urls
-      .map(
-        (_, i) =>
-          `<button class="exp-dot ${i === 0 ? "active" : ""}" type="button" aria-label="Go to image ${i + 1}"></button>`
-      )
-      .join("");
+  // ---- Carousel HTML using YOUR old classnames ----
+  function buildCarousel(urls) {
+    if (!urls || urls.length === 0) return "";
+
+    const slides = urls.map((u) => `
+      <div class="exp-slide">
+        <img src="${u}" alt="Experiment image" loading="lazy" />
+      </div>
+    `).join("");
+
+    const dots = urls.map((_, i) => `
+      <button class="exp-dot ${i === 0 ? "active" : ""}" type="button" aria-label="Go to image ${i + 1}" data-i="${i}"></button>
+    `).join("");
 
     return `
-      <div class="exp-carousel" data-carousel="live">
-        <div class="exp-track">
-          ${urls
-            .map(
-              (u) => `
-            <div class="exp-slide">
-              <img src="${u}" alt="${alt}" loading="lazy" decoding="async">
-            </div>
-          `
-            )
-            .join("")}
-        </div>
+      <div class="exp-carousel">
+        <div class="exp-track">${slides}</div>
         <div class="exp-dots">${dots}</div>
       </div>
     `;
   }
 
-  function initCarousel(el) {
-    const track = el.querySelector(".exp-track");
-    const dots = Array.from(el.querySelectorAll(".exp-dot"));
-    if (!track || dots.length <= 1) return;
+  function wireCarousel(card) {
+    const track = $(".exp-track", card);
+    const dots = $all(".exp-dot", card);
+    if (!track || dots.length === 0) return;
 
-    const update = () => {
-      const w = track.clientWidth || 1;
-      const idx = Math.round(track.scrollLeft / w);
+    function setActive(idx) {
       dots.forEach((d, i) => d.classList.toggle("active", i === idx));
-    };
+    }
 
-    track.addEventListener("scroll", () => requestAnimationFrame(update), { passive: true });
-
-    dots.forEach((d, i) => {
+    dots.forEach((d) => {
       d.addEventListener("click", () => {
+        const i = Number(d.getAttribute("data-i") || 0);
         const w = track.clientWidth || 1;
         track.scrollTo({ left: i * w, behavior: "smooth" });
+        setActive(i);
       });
     });
 
-    window.addEventListener("resize", () => requestAnimationFrame(update), { passive: true });
-
-    update();
+    track.addEventListener("scroll", () => {
+      const w = track.clientWidth || 1;
+      const idx = Math.round(track.scrollLeft / w);
+      setActive(Math.max(0, Math.min(dots.length - 1, idx)));
+    });
   }
 
-  function initAllCarousels() {
-    document.querySelectorAll(".exp-carousel[data-carousel='live']").forEach(initCarousel);
-  }
+  async function loadExperiments() {
+    const container = document.getElementById("experiments-list");
+    if (!container) return;
 
-  async function renderExperiments() {
-    const grid = document.querySelector(".experiments-grid");
-    if (!grid) return;
-    const sb = window.sb;
-    if (!sb) return;
+    let sb;
+    try {
+      sb = await waitForSb();
+    } catch {
+      container.innerHTML = `<p class="experiments-note">Backend not configured. Check Supabase keys.</p>`;
+      return;
+    }
 
+    const BUCKET = "experiments";
+
+    // IMPORTANT: include summary (your DB uses it)
     const { data, error } = await sb
       .from("experiments")
-      .select("id,title,description,status,is_published,image_paths,image_path,image_alt,created_at")
+      .select("id,title,status,summary,description,image_paths,is_published,created_at")
       .eq("is_published", true)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[AARNA] experiments query error:", error.message);
+      container.innerHTML = `<p class="experiments-note">Failed to load experiments.</p>`;
       return;
     }
 
-    if (!data || !data.length) {
-      grid.innerHTML = `<p style="opacity:.75;">No experiments published yet.</p>`;
+    if (!data?.length) {
+      container.innerHTML = `<p class="experiments-note">No experiments published yet.</p>`;
       return;
     }
 
-    grid.innerHTML = data
-      .map((x) => {
-        const status = x.status ? `<span class="experiment-status">${x.status}</span>` : "";
-        const paths = normalizeImagePaths(x);
-        const urls = paths.map((p) => getPublicImageUrl(sb, "experiments", p)).filter(Boolean);
-        const alt = (x.image_alt || x.title || "Experiment image").replace(/"/g, "&quot;");
+    container.innerHTML = data.map((x) => {
+      const paths = Array.isArray(x.image_paths) ? x.image_paths.slice(0, 4) : [];
+      const urls = paths.map((p) => {
+        const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(p);
+        return pub?.publicUrl || "";
+      }).filter(Boolean);
 
-        return `
-          <article class="experiment-card hover-float">
-            ${status}
-            ${carouselHtml(urls, alt)}
-            <h3>${x.title || ""}</h3>
-            <p>${x.description || ""}</p>
-          </article>
-        `;
-      })
-      .join("");
+      const text = (x.summary || x.description || "");
+      return `
+        <article class="experiment-card hover-float">
+          <span class="experiment-status">${(x.status || "Published")}</span>
+          <h3>${x.title}</h3>
+          <p>${text}</p>
+          ${buildCarousel(urls)}
+        </article>
+      `;
+    }).join("");
 
-    initAllCarousels();
+    $all(".experiment-card", container).forEach(wireCarousel);
   }
 
-  async function bootSupabaseFeatures() {
-    if (!window.sb) return;
-    await renderExperiments();
+  function initContactForm() {
+    const form = document.getElementById("contact-form");
+    if (!form) return;
+
+    let inFlight = false;
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (inFlight) return;
+      inFlight = true;
+
+      const btn = form.querySelector('button[type="submit"]');
+      const prev = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+
+      try {
+        const sb = await waitForSb();
+
+        const name = form.elements.name.value.trim();
+        const email = form.elements.email.value.trim();
+        const message = form.elements.message.value.trim();
+        const newsletter = !!document.getElementById("newsletter-optin")?.checked;
+
+        const { error } = await sb.from("contact_messages").insert([{
+          name, email, message,
+          newsletter_optin: newsletter,
+          status: "open"
+        }]);
+        if (error) throw new Error(error.message || "Failed to submit");
+
+        if (newsletter) {
+          await sb.from("newsletter_signups").upsert({ email }, { onConflict: "email" });
+        }
+
+        form.reset();
+        showToast("Your message has been received.", "success");
+      } catch (err) {
+        showToast(err?.message || "Failed to send message.", "error");
+      } finally {
+        inFlight = false;
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
+    });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     initMobileNav();
-
-    // run once if already ready
-    if (window.sb) bootSupabaseFeatures();
-
-    // run when Supabase becomes ready
-    window.addEventListener("aarna:supabase-ready", () => bootSupabaseFeatures(), { once: true });
+    initContactForm();
+    trackVisitor();
+    loadExperiments();
   });
 })();
